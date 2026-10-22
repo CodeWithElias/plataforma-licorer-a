@@ -31,24 +31,22 @@ else
   falla "dynamodb-init no terminó bien (docker compose logs dynamodb-init)"
 fi
 
-echo "2. Bases de datos"
-# PostgreSQL de ms-ventas en Supabase (credenciales de ms-ventas/.env)
-tablas=$(MSYS_NO_PATHCONV=1 docker run --rm -e PGPASSWORD="$(leer ms-ventas/.env POSTGRES_PASSWORD)" postgres:16 psql \
-  "host=$(leer ms-ventas/.env DB_HOST) port=$(leer ms-ventas/.env DB_PORT) dbname=$(leer ms-ventas/.env POSTGRES_DB) user=$(leer ms-ventas/.env POSTGRES_USER) sslmode=require connect_timeout=10" \
-  -tAc "SELECT string_agg(table_name, ' ' ORDER BY table_name) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null)
-for t in detalle_venta idempotency_keys pago saga_instancia venta flyway_schema_history; do
-  case " $tablas " in *" $t "*) pasa "PostgreSQL (Supabase): tabla $t" ;; *) falla "PostgreSQL (Supabase): falta la tabla $t (la crea Flyway al arrancar ms-ventas)" ;; esac
-done
+echo "2. Bases de datos (a través de cada servicio)"
+SRV=$(curl -s "$KC/protocol/openid-connect/token" -d grant_type=client_credentials -d client_id=n8n -d "client_secret=$N8N_CLIENT_SECRET" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+# PostgreSQL de ms-ventas (Supabase): conexión y migraciones de Flyway
+curl -s http://localhost/api/ventas/health | grep -o '"db":{"details":{[^}]*},"status":"[A-Z]*"' | grep -q '"status":"UP"' \
+  && pasa "PostgreSQL (Supabase): ms-ventas conectado" || falla "PostgreSQL (Supabase): ms-ventas no conecta (docker compose logs ms-ventas)"
+curl -s -H "Authorization: Bearer $SRV" http://localhost/api/ventas/flyway | grep -q '"version":"1".*"state":"SUCCESS"\|"state":"SUCCESS".*"version":"1"' \
+  && pasa "PostgreSQL (Supabase): migración V1 (tablas de ventas) aplicada" || falla "PostgreSQL (Supabase): falta la migración V1 de Flyway"
 dyn=$(docker compose run --rm --no-deps --entrypoint aws dynamodb-init \
   dynamodb list-tables --endpoint-url http://dynamodb:8000 --output text 2>/dev/null)
 for t in Productos Reservas Stock; do
   echo "$dyn" | grep -qw "$t" && pasa "DynamoDB: tabla $t" || falla "DynamoDB: falta la tabla $t"
 done
-# MongoDB de ms-gestion en Atlas (ms-gestion/.env)
-col=$(MSYS_NO_PATHCONV=1 docker run --rm mongo:7 mongosh "$(leer ms-gestion/.env MONGO_URL)" --quiet \
-  --eval "db.getSiblingDB('$(leer ms-gestion/.env MONGO_DB)').getCollectionNames().sort().join(' ')" 2>/dev/null)
+# MongoDB de ms-gestion (Atlas): su /health lista las colecciones
+col=$(docker compose exec -T ms-gestion wget -qO- http://127.0.0.1:3000/health 2>/dev/null)
 for c in empleados ingresos ordenes_compra proveedores reportes sucursales; do
-  case " $col " in *" $c "*) pasa "MongoDB (Atlas): colección $c" ;; *) falla "MongoDB (Atlas): falta la colección $c (docker compose run --rm mongo-init)" ;; esac
+  case "$col" in *"\"$c\""*) pasa "MongoDB (Atlas): colección $c" ;; *) falla "MongoDB (Atlas): falta la colección $c (docker compose run --rm mongo-init)" ;; esac
 done
 
 echo "3. Keycloak"
@@ -73,7 +71,6 @@ for r in /api/ventas/health /api/inventario/health /health@ms-gestion /api/ia/he
   esac
   [ "$code" = 200 ] && pasa "$r" || falla "$r respondió $code"
 done
-SRV=$(curl -s "$KC/protocol/openid-connect/token" -d grant_type=client_credentials -d client_id=n8n -d "client_secret=$N8N_CLIENT_SECRET" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 n=$(curl -s -H "Authorization: Bearer $SRV" http://localhost/api/inventario/productos | grep -o '"codigo"' | wc -l)
 [ "$n" -ge 20 ] && pasa "GET /api/inventario/productos con token: $n productos" || falla "GET /api/inventario/productos devolvió $n productos (se esperaban 20; docker compose logs ms-inventario)"
 n=$(curl -s -H "Authorization: Bearer $SRV" "http://localhost/api/inventario/stock?sucursal=SUC-01" | grep -o '"productoCodigo"' | wc -l)
@@ -97,9 +94,17 @@ curl -s http://localhost/mfe-pos/pos-element.js | grep -q 'licoreria-pos' && pas
 code=$(http http://localhost/mfe-pos/manifest.webmanifest)
 [ "$code" = 200 ] && pasa "manifest PWA de mfe-pos" || falla "manifest PWA respondió $code"
 
-echo "6. Otros"
-code=$(http http://localhost:5678/)
-[ "$code" = 200 ] && pasa "n8n en http://localhost:5678" || falla "n8n respondió $code"
+echo "6. Puertos directos de cada servicio"
+for p in "ms-ventas|http://localhost:8080/health" "ms-inventario|http://localhost:8001/health" \
+         "ms-gestion|http://localhost:3000/health" "ms-ia|http://localhost:8002/health" \
+         "web-shell|http://localhost:4200/" "mfe-gestion|http://localhost:4201/mfe-gestion/" \
+         "mfe-pos|http://localhost:4202/mfe-pos/" "n8n|http://localhost:5678/"; do
+  code=$(http "${p#*|}")
+  [ "$code" = 200 ] && pasa "${p%%|*} en ${p#*|}" || falla "${p%%|*} no responde en ${p#*|} ($code)"
+done
+curl -s http://localhost/api/ventas/v3/api-docs | grep -q '"url":"http://localhost/api/ventas"' \
+  && pasa "el gateway envía X-Forwarded-Prefix (Swagger de ms-ventas con /api/ventas)" \
+  || falla "Swagger de ms-ventas por el gateway no tiene el prefijo /api/ventas (revisar infra/nginx.conf)"
 
 echo
 echo "Resultado: $ok correctas, $fallas fallas"

@@ -24,6 +24,8 @@ info:
 servers:
   - url: http://localhost/api/ventas
     description: A través de Nginx
+  - url: http://localhost:8080
+    description: Directo al servicio
   - url: http://ms-ventas:8080
     description: Red interna de Docker (servicio a servicio)
 security:

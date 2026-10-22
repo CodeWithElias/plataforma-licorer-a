@@ -8,13 +8,13 @@ Monorepo de la Plataforma Licorería: 4 microservicios, un Shell con 2 micro fro
 |---|---|---|---|---|---|
 | `infra/` | Dev 1 | Nginx, Keycloak | `nginx:80`, `keycloak` | – | – |
 | `ms-ventas/` | Dev 1 | Spring Boot + PostgreSQL (hexagonal, Saga) | `ms-ventas:8080` | `docs/openapi.yaml` | `db/V1__ventas.sql` (Flyway) |
-| `ms-inventario/` | Dev 1 | Laravel + DynamoDB (Clean) | `ms-inventario:8000` | `docs/openapi.yaml` | `db/inventario.sh` |
+| `ms-inventario/` | Dev 1 | Laravel + DynamoDB (Clean) | `ms-inventario:8001` | `docs/openapi.yaml` | `db/inventario.sh` |
 | `n8n/` | Dev 1 | n8n (workflows exportados) | `n8n:5678` | – | – |
 | `ms-gestion/` | Dev 2 | NestJS + MongoDB (DDD, GraphQL) | `ms-gestion:3000` | `schema.graphql` | `db/gestion.js` |
-| `web-shell/` | Dev 2 | Angular + Native Federation (host) | `web-shell:80` | – | – |
-| `mfe-gestion/` | Dev 2 | Angular + Native Federation (remoto) | `mfe-gestion:80` | – | – |
-| `mfe-pos/` | Dev 2 | React + Vite, PWA | `mfe-pos:80` | – | IndexedDB (Dexie) |
-| `ms-ia/` | Dev 3 | FastAPI, TensorFlow, LangGraph, MCP | `ms-ia:8000` | `docs/openapi.yaml` | – (modelos en archivos) |
+| `web-shell/` | Dev 2 | Angular + Native Federation (host) | `web-shell:4200` | – | – |
+| `mfe-gestion/` | Dev 2 | Angular + Native Federation (remoto) | `mfe-gestion:4201` | – | – |
+| `mfe-pos/` | Dev 2 | React + Vite, PWA | `mfe-pos:4202` | – | IndexedDB (Dexie) |
+| `ms-ia/` | Dev 3 | FastAPI, TensorFlow, LangGraph, MCP | `ms-ia:8002` | `docs/openapi.yaml` | – (modelos en archivos) |
 | `app-movil/` | Dev 3 | Flutter | No va en el compose: corre en el celular | – | `lib/db/esquema.sql` (SQLite) |
 | `docs/` | Todos | Enterprise Architect, documento APA, planes | – | – | – |
 
@@ -57,7 +57,8 @@ Keycloak lee los secretos de los clientes del `.env` de quien los usa (`ms-gesti
 Primera vez en una máquina nueva:
 
 ```sh
-sh infra/crear-env.sh     # crea cada <proyecto>/.env desde su .env.example; luego cambia las claves de ejemplo
+sh infra/crear-env.sh            # crea cada <proyecto>/.env desde su .env.example; luego pon los valores reales
+docker compose run --rm mongo-init   # solo si el cluster de Atlas está vacío: crea colecciones e índices
 ```
 
 ### Bases de datos
@@ -66,7 +67,7 @@ sh infra/crear-env.sh     # crea cada <proyecto>/.env desde su .env.example; lue
 |---|---|---|
 | PostgreSQL de ms-ventas | Supabase (en línea) | `ms-ventas/.env` (`DB_HOST`, `POSTGRES_*`); el esquema lo crea Flyway al arrancar |
 | PostgreSQL de Keycloak | Supabase (en línea, otro proyecto) | `infra/.env` (`KC_DB_URL`, `KC_DB_*`); Keycloak crea sus tablas e importa el realm |
-| MongoDB de ms-gestion | MongoDB Atlas (en línea) | `ms-gestion/.env` (`MONGO_URL`, `MONGO_DB`); el servicio `mongo-init` aplica `db/gestion.js` en cada arranque |
+| MongoDB de ms-gestion | MongoDB Atlas (en línea) | `ms-gestion/.env` (`MONGO_URL`, `MONGO_DB`); colecciones e índices con `docker compose run --rm mongo-init` (una vez por cluster o si cambia `db/gestion.js`) |
 | DynamoDB de ms-inventario | Local (contenedor `dynamodb`) | `ms-inventario/.env`; `dynamodb-init` crea las tablas |
 
 Se usa el *session pooler* de Supabase (puerto 5432, con SSL) y pocas conexiones por servicio (`DB_POOL_MAX`, `KC_DB_POOL_MAX_SIZE`), porque el plan gratuito admite pocas. En Atlas, la IP de quien levanta el compose debe estar en *Network Access*.
@@ -89,24 +90,30 @@ docker compose down                                # apagar
 docker compose down -v                             # apagar y borrar los datos
 ```
 
-## URLs
+## URLs y puertos
 
-| Qué | URL |
-|---|---|
-| Shell (inicio) | http://localhost/ |
-| POS (dentro del Shell / independiente) | http://localhost/pos · http://localhost/mfe-pos/ |
-| Gestión (dentro del Shell / independiente) | http://localhost/gestion · http://localhost/mfe-gestion/ |
-| Keycloak (consola admin: `KC_BOOTSTRAP_ADMIN_*` de `infra/.env`) | http://localhost/auth/admin |
-| API ventas · Swagger | http://localhost/api/ventas/health · http://localhost/api/ventas/swagger-ui.html |
-| API inventario | http://localhost/api/inventario/health |
-| GraphQL gestión | http://localhost/graphql |
-| API IA · Swagger | http://localhost/api/ia/health · http://localhost/api/ia/docs |
-| n8n | http://localhost:5678 |
-| PostgreSQL ventas (DBeaver) | Supabase: host, usuario y clave de `ms-ventas/.env` (SSL obligatorio) |
-| DynamoDB Local (NoSQL Workbench) | http://localhost:8000 — credenciales `local` / `local`, región `us-east-1` |
-| MongoDB (Compass) | Atlas: `MONGO_URL` de `ms-gestion/.env` |
+Cada servicio tiene **un puerto propio**, el mismo dentro y fuera de Docker. La aplicación se usa siempre por el **gateway** (`http://localhost`): Nginx actúa de proxy inverso, recibe la petición y llama él mismo a la URL real del servicio (por ejemplo `/api/ventas/ventas` → `http://ms-ventas:8080/ventas`). Los puertos directos sirven para probar o depurar cada servicio por separado.
 
-Si un servicio está caído, Nginx responde `502` en su ruta, pero el resto sigue funcionando.
+| Servicio | Puerto | Directo | Por el gateway |
+|---|---|---|---|
+| Gateway (Nginx) | 80 | – | http://localhost/ |
+| web-shell | 4200 | http://localhost:4200 (sin los remotos) | http://localhost/ (app completa) |
+| mfe-gestion | 4201 | http://localhost:4201/mfe-gestion/ | http://localhost/gestion (en el Shell) · http://localhost/mfe-gestion/ |
+| mfe-pos | 4202 | http://localhost:4202/mfe-pos/ | http://localhost/pos (en el Shell) · http://localhost/mfe-pos/ |
+| ms-gestion | 3000 | http://localhost:3000/health · http://localhost:3000/graphql | http://localhost/graphql |
+| ms-ventas | 8080 | http://localhost:8080/health · http://localhost:8080/swagger-ui.html | http://localhost/api/ventas/… |
+| ms-inventario | 8001 | http://localhost:8001/health | http://localhost/api/inventario/… |
+| ms-ia | 8002 | http://localhost:8002/health · http://localhost:8002/docs | http://localhost/api/ia/… |
+| Keycloak | – | – | http://localhost/auth/admin (admin: `KC_BOOTSTRAP_ADMIN_*` de `infra/.env`) |
+| n8n | 5678 | http://localhost:5678 | – |
+| DynamoDB Local | 8000 | NoSQL Workbench: credenciales de `ms-inventario/.env`, región `us-east-1` | – |
+| PostgreSQL ventas | – | DBeaver: Supabase con los datos de `ms-ventas/.env` (SSL obligatorio) | – |
+| MongoDB gestión | – | Compass: `MONGO_URL` de `ms-gestion/.env` | – |
+
+- Keycloak solo entra por `/auth`: el emisor de los tokens es `http://localhost/auth`, por otro puerto el login no valdría.
+- El Shell en `:4200` directo no carga los remotos, porque los busca en `/mfe-gestion/` y `/mfe-pos/` del mismo origen; eso solo existe en el gateway.
+- Si un servicio está caído, Nginx responde `502` en su ruta, pero el resto sigue funcionando.
+- Para correr un servicio desde el IDE en su puerto, detén antes su contenedor (`docker compose stop ms-ventas`).
 
 ## Cómo se integran los micro frontends
 
@@ -144,8 +151,8 @@ Token de prueba en Postman/Bruno: Authorization → OAuth 2.0 → *Authorization
 ## Problemas comunes
 
 - **Los scripts `.sh` fallan con `\r: not found`**: el archivo quedó con CRLF. El `.gitattributes` fuerza LF; si ya lo clonaste antes, vuelve a hacer checkout del archivo.
-- **Cambié `gestion.js`**: se aplica solo al levantar el compose, o a mano con `docker compose run --rm mongo-init`.
+- **Cambié `gestion.js`** o es un cluster de Atlas nuevo: `docker compose run --rm mongo-init` (es idempotente).
 - **ms-gestion no conecta a Atlas** (`querySrv`, `timed out`): agrega tu IP en Atlas → *Network Access*.
 - **`tenant/user not found` en Supabase**: el host del pooler no corresponde al proyecto (cada proyecto tiene la región en su host).
 - **401 con un token recién emitido**: revisa en jwt.io que `iss` sea `http://localhost/auth/realms/licoreria`.
-- **El puerto 80 u 8000 está ocupado**: detén el programa que lo usa (XAMPP, otro servidor, etc.).
+- **Un puerto está ocupado** (80, 3000, 4200-4202, 5678, 8000-8002, 8080): detén el programa que lo usa (XAMPP, otro servidor, un `ng serve` del mismo proyecto, etc.).

@@ -9,5 +9,5 @@ RUN npx ng build
 # --- Servidor estático ---
 FROM nginx:stable-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist/mfe-gestion/browser /usr/share/nginx/html
-EXPOSE 80
+COPY --from=build /app/dist/mfe-gestion/browser /usr/share/nginx/html/mfe-gestion
+EXPOSE 4201

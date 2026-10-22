@@ -7,6 +7,11 @@ info:
   description: Clasificación de productos (TensorFlow), agentes LangGraph y servidor MCP.
 servers:
   - url: http://localhost/api/ia
+    description: A través de Nginx
+  - url: http://localhost:8002
+    description: Directo al servicio
+  - url: http://ms-ia:8002
+    description: Red interna de Docker (servicio a servicio)
 security:
   - bearer: []
 paths:

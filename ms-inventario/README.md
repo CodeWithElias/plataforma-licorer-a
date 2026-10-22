@@ -7,7 +7,7 @@ Microservicio de inventario de la Plataforma Licorería: catálogo de productos,
 | Dueño | Dev 1 |
 | Tecnología | PHP 8.4 · Laravel 13 + DynamoDB |
 | Arquitectura | Clean Architecture (`src/`: Entities, UseCases, InterfaceAdapters, Frameworks) |
-| Puerto | 8000 (por Nginx: `/api/inventario/`) |
+| Puerto | 8001 (por Nginx: `/api/inventario/`) |
 | Contrato | `docs/openapi.yaml` |
 | Base de datos | `db/inventario.sh` |
 
@@ -19,7 +19,7 @@ Desde la raíz del monorepo:
 docker compose up -d --build ms-inventario
 ```
 
-- `GET http://localhost/api/inventario/health` (incluye las tablas de DynamoDB)
+- `GET http://localhost:8001/health` directo, o `http://localhost/api/inventario/health` por el gateway (incluye las tablas de DynamoDB)
 
 ## Correrlo solo (desarrollo)
 
@@ -32,7 +32,7 @@ docker compose up -d --build ms-inventario
    cp .env.example .env
    composer install
    php artisan key:generate
-   php -S localhost:8000 -t public public/index.php
+   php -S localhost:8001 -t public public/index.php
    ```
 
 Sin PHP instalado: `docker compose up -d --build ms-inventario`.

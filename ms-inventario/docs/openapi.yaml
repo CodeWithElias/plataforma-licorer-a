@@ -5,7 +5,7 @@ info:
   description: |
     Catálogo de productos, stock por sucursal y reservas de stock para la Saga de ventas (CU02).
 
-    **Acceso:** por Nginx en `/api/inventario`. Desde otros microservicios, directo en `http://ms-inventario:8000`.
+    **Acceso:** por Nginx en `/api/inventario`. Desde otros microservicios, directo en `http://ms-inventario:8001`.
 
     **Seguridad:** todas las rutas, excepto `/health`, exigen `Authorization: Bearer <token>` emitido por Keycloak
     (realm `licoreria`). Los roles se leen de `realm_access.roles`. ms-ventas reenvía el token del cajero,
@@ -22,7 +22,9 @@ info:
 servers:
   - url: http://localhost/api/inventario
     description: A través de Nginx
-  - url: http://ms-inventario:8000
+  - url: http://localhost:8001
+    description: Directo al servicio
+  - url: http://ms-inventario:8001
     description: Red interna de Docker (servicio a servicio)
 security:
   - bearer: []

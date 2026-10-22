@@ -16,11 +16,12 @@ describe('ms-gestion (e2e)', () => {
     await app.init();
   });
 
-  it('GET /health', () => {
+  it('GET /health sin MONGO_URL responde DOWN', () => {
+    delete process.env.MONGO_URL;
     return request(app.getHttpServer())
       .get('/health')
-      .expect(200)
-      .expect({ status: 'UP', servicio: 'ms-gestion' });
+      .expect(503)
+      .expect({ status: 'DOWN', servicio: 'ms-gestion', components: { mongodb: { status: 'DOWN', error: 'Falta MONGO_URL' } } });
   });
 
   it('query salud', () => {

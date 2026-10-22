@@ -19,8 +19,8 @@ Desde la raíz del monorepo:
 docker compose up -d --build ms-ventas
 ```
 
-- `GET http://localhost/api/ventas/health`
-- Swagger: `http://localhost/api/ventas/swagger-ui.html`
+- `GET http://localhost:8080/health` directo, o `http://localhost/api/ventas/health` por el gateway
+- Swagger: `http://localhost:8080/swagger-ui.html` (por el gateway: `http://localhost/api/ventas/swagger-ui.html`)
 
 ## Correrlo solo (desarrollo)
 

@@ -6,7 +6,7 @@ Shell Angular de la Plataforma Licorería: menú, inicio de sesión único con K
 |---|---|
 | Dueño | Dev 2 |
 | Tecnología | Angular + Native Federation (host) |
-| Puerto | 80 en el contenedor (por Nginx: `/`) |
+| Puerto | 4200 (directo: `http://localhost:4200`; la app completa, con los remotos, en el gateway: `http://localhost/`) |
 
 ## Cómo carga los micro frontends
 

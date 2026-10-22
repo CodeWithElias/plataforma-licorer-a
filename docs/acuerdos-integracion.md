@@ -5,7 +5,7 @@ Puntos donde un servicio llama a otro. Los contratos completos están en cada se
 
 Reglas comunes:
 
-- Entre microservicios se llama **directo por la red de Docker** (`http://ms-inventario:8000`, …); solo los frontends y la app pasan por Nginx.
+- Entre microservicios se llama **directo por la red de Docker** (`http://ms-inventario:8001`, …); solo los frontends y la app pasan por Nginx.
 - Cada llamada **reenvía el token** que recibió el servicio que llama (el del cajero, el del gerente o el de la cuenta de servicio de n8n). No hay clientes de Keycloak nuevos para esto.
 - Los errores REST tienen la forma `{ "codigo": "SIN_STOCK", "mensaje": "..." }`; el `codigo` es estable y es lo que se compara en el código.
 
@@ -64,8 +64,8 @@ Las tools llaman directo a los servicios dueños y reenvían el token del usuari
 
 | Tool | Servicio | Llamada | Rol |
 |---|---|---|---|
-| `buscar_producto` | ms-inventario | `GET http://ms-inventario:8000/productos?tipo=` y `GET /productos/{codigo}` | cualquiera con token |
-| `stock_actual` | ms-inventario | `GET http://ms-inventario:8000/stock?sucursal=SUC-01` | GERENTE, ALMACEN |
+| `buscar_producto` | ms-inventario | `GET http://ms-inventario:8001/productos?tipo=` y `GET /productos/{codigo}` | cualquiera con token |
+| `stock_actual` | ms-inventario | `GET http://ms-inventario:8001/stock?sucursal=SUC-01` | GERENTE, ALMACEN |
 | `ventas_por_periodo` | ms-ventas | `GET http://ms-ventas:8080/ventas?desde=&hasta=&sucursal=` (fechas ISO 8601, `hasta` exclusivo) | GERENTE |
 | `crear_orden_compra` | ms-gestion | mutation `crearOrdenCompra(input: { proveedorId, origen: AGENTE, lineas })` | GERENTE |
 
@@ -74,7 +74,7 @@ Las tools llaman directo a los servicios dueños y reenvían el token del usuari
 1. Al confirmar una reserva, si `cantidad < minimo` y no se avisó antes, ms-inventario llama a
    `POST http://n8n:5678/webhook/stock-bajo` con `{ productoCodigo, sucursalId, cantidad, minimo }`.
 2. n8n obtiene un token con su cliente `n8n` (client credentials) y llama a
-   `POST http://ms-ia:8000/agentes/reabastecimiento` con el mismo cuerpo. **Ruta exacta a confirmar con Dev 3.**
+   `POST http://ms-ia:8002/agentes/reabastecimiento` con el mismo cuerpo. **Ruta exacta a confirmar con Dev 3.**
 3. Si el agente crea la orden, n8n envía el correo al gerente.
 
 ## Pendientes de confirmar

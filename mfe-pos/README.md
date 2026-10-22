@@ -6,7 +6,7 @@ Micro frontend del punto de venta de la Plataforma Licorería: catálogo, carrit
 |---|---|
 | Dueño | Dev 2 (componente TF.js de Dev 3) |
 | Tecnología | React + Vite + vite-plugin-pwa (Workbox) |
-| Puerto | 80 en el contenedor (por Nginx: `/mfe-pos/`) |
+| Puerto | 4202 (directo: `http://localhost:4202/mfe-pos/`; por el gateway: `http://localhost/mfe-pos/`) |
 | Consume | ms-ventas, ms-inventario, ms-ia |
 
 ## Cómo se integra con el Shell

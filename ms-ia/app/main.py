@@ -6,13 +6,30 @@ from fastapi import FastAPI
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 
-# ROOT_PATH=/api/ia detrás de Nginx, para que Swagger (/docs) arme bien las URLs
 app = FastAPI(
     title="ms-ia",
     description="Inteligencia artificial de la Plataforma Licorería: clasificación de productos, agentes y MCP.",
     version="0.1.0",
     root_path=os.getenv("ROOT_PATH", ""),
 )
+
+
+class PrefijoDelGateway:
+    """Usa el X-Forwarded-Prefix que envía Nginx (/api/ia) como root_path, así Swagger (/docs)
+    funciona igual por el gateway que entrando directo al puerto del servicio."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            prefijo = dict(scope["headers"]).get(b"x-forwarded-prefix")
+            if prefijo:
+                scope = dict(scope, root_path=prefijo.decode())
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(PrefijoDelGateway)
 
 
 def _estado_ollama() -> dict:

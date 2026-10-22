@@ -1,8 +1,12 @@
 # Plataforma Licorería – entorno completo (monorepo)
 #   sh infra/crear-env.sh                           primera vez: crea cada <proyecto>/.env desde su .env.example
+#   docker compose run --rm mongo-init              primera vez por cluster de Atlas: colecciones e índices de ms-gestion
 #   docker compose up -d --build                    todo el sistema
 #   docker compose up -d --build ms-ventas nginx    solo lo que nombras (y sus dependencias)
 #   docker compose --profile llm up -d ollama       LLM local para los agentes de ms-ia (imagen grande)
+#
+# Puertos: cada servicio tiene uno propio, igual dentro y fuera de Docker (ver README). El frontend entra
+# siempre por el gateway (nginx :80); los puertos directos sirven para probar cada servicio por separado.
 #
 # Cada servicio lee su configuración de SU .env (env_file). Aquí no hay claves: en "environment" solo se
 # cambian las direcciones de red internas, porque dentro de Docker los servicios se llaman por nombre
@@ -27,7 +31,10 @@ services:
     entrypoint: ["/bin/sh", "/init/inventario.sh"]
     volumes: ["./ms-inventario/db/inventario.sh:/init/inventario.sh:ro"]
 
-  mongo-init:                          # aplica ms-gestion/db/gestion.js en Atlas (idempotente) y se apaga
+  mongo-init:                          # solo a mano: docker compose run --rm mongo-init
+    # Aplica ms-gestion/db/gestion.js en Atlas (colecciones, validadores e índices) y se apaga.
+    # Se ejecuta una vez por cluster o cuando cambia gestion.js; no corre con "docker compose up".
+    profiles: [setup]
     image: mongo:7
     env_file: ./ms-gestion/.env
     entrypoint: ["sh", "-c", "mongosh \"$$MONGO_URL\" --quiet /init/gestion.js"]
@@ -57,15 +64,17 @@ services:
   ms-ventas:
     build: ./ms-ventas
     env_file: ./ms-ventas/.env
+    ports: ["8080:8080"]
     environment:
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
-      INVENTARIO_URL: http://ms-inventario:8000
+      INVENTARIO_URL: http://ms-inventario:8001
       GESTION_URL: http://ms-gestion:3000/graphql
     depends_on: [keycloak]
 
   ms-inventario:
     build: ./ms-inventario
     env_file: ./ms-inventario/.env
+    ports: ["8001:8001"]
     environment:
       DYNAMODB_ENDPOINT: http://dynamodb:8000
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
@@ -84,32 +93,34 @@ services:
   ms-gestion:
     build: ./ms-gestion
     env_file: ./ms-gestion/.env
+    ports: ["3000:3000"]
     environment:
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_URL: http://keycloak:8080/auth
-    depends_on:
-      mongo-init: { condition: service_completed_successfully }
-      keycloak: { condition: service_started }
+    depends_on: [keycloak]
 
   web-shell:
     build: ./web-shell
+    ports: ["4200:4200"]
 
   mfe-gestion:
     build: ./mfe-gestion
+    ports: ["4201:4201"]
 
   mfe-pos:
     build: ./mfe-pos                     # usa mfe-pos/.env al compilar (variables VITE_*)
+    ports: ["4202:4202"]
 
   # ---------- Dev 3 ----------
   ms-ia:
     build: ./ms-ia
     env_file: ./ms-ia/.env
+    ports: ["8002:8002"]
     environment:
-      ROOT_PATH: /api/ia
       OLLAMA_URL: http://ollama:11434
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
       VENTAS_URL: http://ms-ventas:8080
-      INVENTARIO_URL: http://ms-inventario:8000
+      INVENTARIO_URL: http://ms-inventario:8001
       GESTION_URL: http://ms-gestion:3000/graphql
     depends_on: [keycloak]
 

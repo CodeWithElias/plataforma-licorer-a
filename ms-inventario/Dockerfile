@@ -14,6 +14,6 @@ COPY --from=vendor /app /app
 RUN php artisan package:discover
 # Servidor de PHP directo (artisan serve se cuelga en Docker e ignora los workers)
 ENV PHP_CLI_SERVER_WORKERS=4
-EXPOSE 8000
+EXPOSE 8001
 # Carga el catálogo que falte y arranca el servidor
-CMD ["sh", "-c", "php artisan inventario:seed && exec php -S 0.0.0.0:8000 -t public public/index.php"]
+CMD ["sh", "-c", "php artisan inventario:seed && exec php -S 0.0.0.0:8001 -t public public/index.php"]
