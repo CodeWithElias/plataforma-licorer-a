@@ -1,0 +1,369 @@
+openapi: 3.0.3
+info:
+  title: ms-inventario
+  version: 1.0.0
+  description: |
+    Catálogo de productos, stock por sucursal y reservas de stock para la Saga de ventas (CU02).
+
+    **Acceso:** por Nginx en `/api/inventario`. Desde otros microservicios, directo en `http://ms-inventario:8000`.
+
+    **Seguridad:** todas las rutas, excepto `/health`, exigen `Authorization: Bearer <token>` emitido por Keycloak
+    (realm `licoreria`). Los roles se leen de `realm_access.roles`. ms-ventas reenvía el token del cajero,
+    por eso las reservas aceptan el rol `CAJERO`. Las cuentas de servicio (n8n) tienen rol `GERENTE`.
+
+    **Idempotencia:** el `reservaId` es el `operationId` de la venta. Repetir una reserva, confirmación o
+    liberación con el mismo id no cambia nada y devuelve el estado actual, así ms-ventas puede reintentar sin riesgo.
+
+    **Concurrencia:** el stock usa bloqueo optimista (atributo `version`). Si otra operación lo cambia entre la
+    lectura y la escritura, se reintenta hasta 3 veces; si aun así no se puede, responde **503** `ERROR_INTERNO`
+    y ms-ventas debe reintentar.
+
+    Contrato acordado en la semana 1; no se cambia sin avisar a Dev 2 (POS) y Dev 3 (tools MCP).
+servers:
+  - url: http://localhost/api/inventario
+    description: A través de Nginx
+  - url: http://ms-inventario:8000
+    description: Red interna de Docker (servicio a servicio)
+security:
+  - bearer: []
+tags:
+  - name: Productos
+  - name: Stock
+  - name: Reservas
+    description: Usadas por la Saga de ms-ventas
+  - name: Sistema
+
+paths:
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Estado del servicio y de DynamoDB
+      operationId: health
+      security: []
+      responses:
+        "200":
+          description: Servicio y DynamoDB disponibles
+          content:
+            application/json:
+              example: { status: UP, servicio: ms-inventario, components: { dynamodb: { status: UP, tablas: [Productos, Reservas, Stock] } } }
+        "503":
+          description: DynamoDB no responde
+
+  /productos:
+    get:
+      tags: [Productos]
+      summary: Lista el catálogo
+      operationId: listarProductos
+      description: "Rol: cualquiera con token. Lo usan el POS (catálogo), la app móvil y la tool MCP `buscar_producto`."
+      parameters:
+        - name: tipo
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/TipoProducto" }
+      responses:
+        "200":
+          description: Productos del catálogo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Producto" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /productos/{codigo}:
+    get:
+      tags: [Productos]
+      summary: Obtiene un producto
+      operationId: obtenerProducto
+      description: "Rol: cualquiera con token. ms-ventas lo usa para tomar nombre y precio al registrar la venta."
+      parameters:
+        - $ref: "#/components/parameters/Codigo"
+      responses:
+        "200":
+          description: Producto
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Producto" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404":
+          description: El producto no existe
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { codigo: PRODUCTO_NO_ENCONTRADO, mensaje: "No existe el producto CER-999" }
+
+  /stock:
+    get:
+      tags: [Stock]
+      summary: Stock de una sucursal
+      operationId: consultarStock
+      description: "Roles: GERENTE, ALMACEN (y cuentas de servicio). Lo usa la tool MCP `stock_actual`."
+      parameters:
+        - name: sucursal
+          in: query
+          required: true
+          schema: { type: string, example: SUC-01 }
+      responses:
+        "200":
+          description: Stock por producto
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Stock" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+
+  /stock/reservas:
+    post:
+      tags: [Reservas]
+      summary: Reserva stock (paso 2 de la Saga)
+      operationId: reservarStock
+      description: |
+        Rol: CAJERO (token reenviado por ms-ventas).
+
+        En una sola transacción de DynamoDB (`TransactWriteItems`):
+        1. Registra la reserva solo si no existe (`attribute_not_exists(reservaId)`): idempotencia.
+        2. Por cada ítem, suma `reservado` solo si `cantidad - reservado >= cantidad pedida` y la `version`
+           no cambió: bloqueo optimista.
+
+        Si un ítem no alcanza, no se reserva nada (409). Si la reserva ya existía, devuelve 200 con su estado actual.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReservaRequest" }
+      responses:
+        "201":
+          description: Reserva creada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reserva" }
+        "200":
+          description: La reserva ya existía (reintento); se devuelve tal cual está
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reserva" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: Algún producto no tiene stock registrado en la sucursal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { codigo: PRODUCTO_NO_ENCONTRADO, mensaje: "CER-999 no tiene stock en SUC-01" }
+        "409":
+          description: No hay stock suficiente; no se reservó nada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorSinStock" }
+
+  /stock/reservas/{reservaId}/confirmar:
+    post:
+      tags: [Reservas]
+      summary: Confirma la reserva (paso 4 de la Saga)
+      operationId: confirmarReserva
+      description: |
+        Rol: CAJERO (token reenviado por ms-ventas).
+
+        Descuenta `cantidad` y `reservado` de cada ítem y marca la reserva CONFIRMADA. Si alguna cantidad
+        queda por debajo de `minimo` y no se avisó antes, llama al webhook de n8n `stock-bajo` (CU06).
+        Confirmar una reserva ya CONFIRMADA devuelve 200 sin hacer nada.
+      parameters:
+        - $ref: "#/components/parameters/ReservaId"
+      responses:
+        "200":
+          description: Reserva confirmada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reserva" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/ReservaNoEncontrada" }
+        "409":
+          description: La reserva fue liberada y ya no se puede confirmar
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { codigo: RESERVA_LIBERADA, mensaje: "La reserva 3f2b... fue liberada" }
+
+  /stock/reservas/{reservaId}:
+    get:
+      tags: [Reservas]
+      summary: Consulta una reserva
+      operationId: obtenerReserva
+      description: "Roles: CAJERO, GERENTE. Sirve para depurar la Saga."
+      parameters:
+        - $ref: "#/components/parameters/ReservaId"
+      responses:
+        "200":
+          description: Reserva
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reserva" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/ReservaNoEncontrada" }
+    delete:
+      tags: [Reservas]
+      summary: Libera la reserva (compensación del paso 2)
+      operationId: liberarReserva
+      description: |
+        Rol: CAJERO (token reenviado por ms-ventas).
+
+        Resta `reservado` de cada ítem y marca la reserva LIBERADA. Es idempotente: si ya estaba LIBERADA
+        responde 200 sin hacer nada. Para la Saga, un 404 también cuenta como compensación hecha
+        (la reserva nunca llegó a crearse).
+      parameters:
+        - $ref: "#/components/parameters/ReservaId"
+      responses:
+        "200":
+          description: Reserva liberada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reserva" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/ReservaNoEncontrada" }
+        "409":
+          description: La reserva ya fue confirmada; no se puede liberar
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { codigo: RESERVA_CONFIRMADA, mensaje: "La reserva 3f2b... ya fue confirmada" }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de Keycloak (realm licoreria, emisor http://localhost/auth/realms/licoreria)
+
+  parameters:
+    Codigo:
+      name: codigo
+      in: path
+      required: true
+      schema: { type: string, example: CER-001 }
+    ReservaId:
+      name: reservaId
+      in: path
+      required: true
+      description: Igual al operationId de la venta
+      schema: { type: string, format: uuid }
+
+  responses:
+    NoAutenticado:
+      description: Falta el token o no es válido
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { codigo: NO_AUTENTICADO, mensaje: "Token ausente o inválido" }
+    SinPermiso:
+      description: El token no tiene el rol requerido
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { codigo: SIN_PERMISO, mensaje: "Se requiere el rol CAJERO" }
+    DatosInvalidos:
+      description: El cuerpo o los parámetros no son válidos
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { codigo: DATOS_INVALIDOS, mensaje: "items debe tener al menos un elemento" }
+    ReservaNoEncontrada:
+      description: La reserva no existe
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { codigo: RESERVA_NO_ENCONTRADA, mensaje: "No existe la reserva 3f2b..." }
+
+  schemas:
+    TipoProducto:
+      type: string
+      enum: [CERVEZA, VINO, SINGANI, RON, WHISKY, VODKA, OTRO]
+
+    Producto:
+      type: object
+      required: [codigo, nombre, tipo, precio, etiquetaModelo]
+      properties:
+        codigo: { type: string, example: CER-001 }
+        nombre: { type: string, example: "Cerveza Paceña 620 ml" }
+        marca: { type: string, example: Paceña }
+        tipo: { $ref: "#/components/schemas/TipoProducto" }
+        gradoAlcoholico: { type: number, example: 4.8 }
+        volumenMl: { type: integer, example: 620 }
+        precio: { type: number, format: double, example: 12.00 }
+        etiquetaModelo: { type: string, description: Clase que devuelve el modelo de reconocimiento, example: pacena_620 }
+
+    Stock:
+      type: object
+      required: [productoCodigo, sucursalId, cantidad, reservado, disponible, minimo]
+      properties:
+        productoCodigo: { type: string, example: CER-001 }
+        sucursalId: { type: string, example: SUC-01 }
+        cantidad: { type: integer, example: 48 }
+        reservado: { type: integer, example: 6 }
+        disponible: { type: integer, description: "cantidad - reservado", example: 42 }
+        minimo: { type: integer, example: 12 }
+
+    ItemReserva:
+      type: object
+      required: [productoCodigo, cantidad]
+      properties:
+        productoCodigo: { type: string, example: CER-001 }
+        cantidad: { type: integer, minimum: 1, example: 6 }
+
+    ReservaRequest:
+      type: object
+      required: [reservaId, sucursalId, items]
+      properties:
+        reservaId: { type: string, format: uuid, description: operationId de la venta }
+        sucursalId: { type: string, example: SUC-01 }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ItemReserva" }
+
+    Reserva:
+      type: object
+      required: [reservaId, sucursalId, items, estado]
+      properties:
+        reservaId: { type: string, format: uuid }
+        sucursalId: { type: string, example: SUC-01 }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ItemReserva" }
+        estado: { type: string, enum: [ACTIVA, CONFIRMADA, LIBERADA] }
+        creadoEn: { type: string, format: date-time }
+
+    Error:
+      type: object
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          description: Código estable para que el cliente decida qué hacer
+          enum: [NO_AUTENTICADO, SIN_PERMISO, DATOS_INVALIDOS, PRODUCTO_NO_ENCONTRADO, SIN_STOCK,
+                 RESERVA_NO_ENCONTRADA, RESERVA_LIBERADA, RESERVA_CONFIRMADA, ERROR_INTERNO]
+        mensaje: { type: string }
+
+    ErrorSinStock:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            faltantes:
+              type: array
+              items:
+                type: object
+                properties:
+                  productoCodigo: { type: string }
+                  pedido: { type: integer }
+                  disponible: { type: integer }
+      example:
+        codigo: SIN_STOCK
+        mensaje: "No hay stock suficiente"
+        faltantes: [{ productoCodigo: CER-001, pedido: 60, disponible: 42 }]

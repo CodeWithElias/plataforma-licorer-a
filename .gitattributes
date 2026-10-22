@@ -1,0 +1,19 @@
+# Fin de línea LF en todo el repo (los .sh fallan en los contenedores con CRLF)
+* text=auto eol=lf
+*.sh text eol=lf
+mvnw text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binarios
+*.jar binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.tflite binary
+*.eap binary
+*.eapx binary
+*.qea binary
+*.qeax binary
+*.docx binary
+*.pdf binary

@@ -1,0 +1,126 @@
+# Contrato de ms-ia (borrador inicial; lo completa y versiona Dev 3).
+# Publicado por Nginx en /api/ia. Todo excepto /health exige Authorization: Bearer <token>.
+openapi: 3.0.3
+info:
+  title: ms-ia
+  version: 0.1.0
+  description: Clasificación de productos (TensorFlow), agentes LangGraph y servidor MCP.
+servers:
+  - url: http://localhost/api/ia
+security:
+  - bearer: []
+paths:
+  /health:
+    get:
+      summary: Estado del servicio y de Ollama
+      security: []
+      responses:
+        "200": { description: OK }
+  /imagen/clasificar:
+    post:
+      summary: Clasifica una foto de producto (CU04)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                imagen: { type: string, format: binary }
+      responses:
+        "200":
+          description: Producto reconocido
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Prediccion" }
+  /video/analizar:
+    post:
+      summary: Extrae 1 frame por segundo y clasifica cada uno (CU04)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                video: { type: string, format: binary }
+      responses:
+        "200":
+          description: Productos detectados
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Prediccion" }
+  /modelos/latest:
+    get:
+      summary: Versión y URL del último modelo (TFLite / TF.js)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: string }
+                  tflite: { type: string }
+                  tfjs: { type: string }
+  /reportes:
+    post:
+      summary: Agente de reportes por lenguaje natural (CU07)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [consulta]
+              properties:
+                consulta: { type: string, example: "Ventas por producto de esta semana en barras" }
+      responses:
+        "200":
+          description: Datos para graficar
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  columnas: { type: array, items: { type: string } }
+                  datos: { type: array, items: { type: array, items: {} } }
+                  tipoGrafico: { type: string, enum: [barras, lineas, torta, tabla] }
+                  resumen: { type: string }
+  /agentes/reabastecimiento:
+    post:
+      summary: Agente de reabastecimiento; lo llama n8n con el aviso de stock bajo (CU06)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productoCodigo: { type: string }
+                sucursalId: { type: string }
+                cantidad: { type: integer }
+                minimo: { type: integer }
+      responses:
+        "200":
+          description: Resultado del agente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ordenCreada: { type: boolean }
+                  numero: { type: string }
+                  lineas: { type: array, items: { type: object } }
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Prediccion:
+      type: object
+      properties:
+        productoCodigo: { type: string }
+        etiqueta: { type: string }
+        confianza: { type: number, format: float }

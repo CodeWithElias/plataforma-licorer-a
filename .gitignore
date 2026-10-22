@@ -1,0 +1,30 @@
+# Variables locales
+.env
+.env.*
+!.env.example
+
+# Dependencias y builds
+node_modules/
+dist/
+target/
+vendor/
+build/
+.angular/
+.dart_tool/
+__pycache__/
+*.pyc
+.venv/
+
+# Planes del equipo (van en docs/planes)
+/*.docx
+
+# IDE y sistema
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+
+plan de implementacion (iconix).docx
+pla-implementacion-dev1.docx

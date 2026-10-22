@@ -1,0 +1,128 @@
+# Contrato GraphQL de ms-gestion (borrador inicial; lo completa y versiona Dev 2).
+# Publicado por Nginx en /graphql. Todas las operaciones exigen Authorization: Bearer <token>.
+
+type Query {
+  "Comprobación rápida del servicio"
+  salud: String!
+
+  proveedores(activo: Boolean): [Proveedor!]!
+  proveedor(id: ID!): Proveedor
+  ordenesCompra(estado: EstadoOrden): [OrdenCompra!]!
+  reportes: [Reporte!]!
+}
+
+type Mutation {
+  # CU05 – Gestionar proveedores
+  crearProveedor(input: ProveedorInput!): Proveedor!
+  editarProveedor(id: ID!, input: ProveedorInput!): Proveedor!
+
+  # CU02 – Saga de ventas (los llama ms-ventas; idempotentes por operationId)
+  registrarIngreso(input: IngresoInput!): Ingreso!
+  anularIngreso(operationId: String!): Ingreso!
+
+  # CU06 – Reabastecimiento (lo llama la tool MCP crear_orden_compra)
+  crearOrdenCompra(input: OrdenCompraInput!): OrdenCompra!
+
+  # CU07 – Exportar reporte
+  exportarReporte(id: ID!, formato: FormatoExportacion!): ArchivoReporte!
+}
+
+# ---------- Proveedores ----------
+type Proveedor {
+  id: ID!
+  nit: String!
+  razonSocial: String!
+  contacto: Contacto
+  productos: [String!]!
+  activo: Boolean!
+}
+
+type Contacto {
+  nombre: String
+  telefono: String
+  email: String
+}
+
+input ProveedorInput {
+  nit: String!
+  razonSocial: String!
+  contacto: ContactoInput
+  productos: [String!]
+  activo: Boolean
+}
+
+input ContactoInput {
+  nombre: String
+  telefono: String
+  email: String
+}
+
+# ---------- Contabilidad ----------
+type Ingreso {
+  id: ID!
+  operationId: String!
+  ventaId: String!
+  sucursalId: String!
+  monto: Float!
+  fecha: String!
+  estado: EstadoIngreso!
+}
+
+input IngresoInput {
+  operationId: String!
+  ventaId: String!
+  sucursalId: String!
+  monto: Float!
+}
+
+enum EstadoIngreso { ACTIVO ANULADO }
+
+# ---------- Compras ----------
+type OrdenCompra {
+  id: ID!
+  numero: String!
+  proveedorId: ID!
+  fecha: String!
+  estado: EstadoOrden!
+  origen: OrigenOrden!
+  lineas: [LineaOrden!]!
+  total: Float!
+}
+
+type LineaOrden {
+  productoCodigo: String!
+  cantidad: Int!
+  precioUnitario: Float!
+}
+
+input OrdenCompraInput {
+  proveedorId: ID!
+  origen: OrigenOrden!
+  lineas: [LineaOrdenInput!]!
+}
+
+input LineaOrdenInput {
+  productoCodigo: String!
+  cantidad: Int!
+  precioUnitario: Float!
+}
+
+enum EstadoOrden { BORRADOR ENVIADA RECIBIDA ANULADA }
+enum OrigenOrden { MANUAL AGENTE }
+
+# ---------- Reportes ----------
+type Reporte {
+  id: ID!
+  consulta: String!
+  tipoGrafico: String!
+  resumen: String
+  creadoPor: String!
+  fecha: String!
+}
+
+type ArchivoReporte {
+  formato: FormatoExportacion!
+  url: String!
+}
+
+enum FormatoExportacion { XLSX PDF }

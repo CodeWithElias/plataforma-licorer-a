@@ -1,0 +1,123 @@
+# Plataforma Licorería – entorno completo (monorepo)
+#   sh infra/crear-env.sh                           primera vez: crea cada <proyecto>/.env desde su .env.example
+#   docker compose up -d --build                    todo el sistema
+#   docker compose up -d --build ms-ventas nginx    solo lo que nombras (y sus dependencias)
+#   docker compose --profile llm up -d ollama       LLM local para los agentes de ms-ia (imagen grande)
+#
+# Cada servicio lee su configuración de SU .env (env_file). Aquí no hay claves: en "environment" solo se
+# cambian las direcciones de red internas, porque dentro de Docker los servicios se llaman por nombre
+# (keycloak:8080, ms-inventario:8000...) y no por localhost como en el .env.
+name: licoreria
+
+services:
+  # ---------- Bases de datos ----------
+  # PostgreSQL de ms-ventas y de Keycloak: Supabase · MongoDB de ms-gestion: Atlas (en la nube, ver cada .env)
+  # DynamoDB: local
+  dynamodb:
+    image: amazon/dynamodb-local
+    command: "-jar DynamoDBLocal.jar -sharedDb"
+    ports: ["8000:8000"]
+
+  dynamodb-init:                       # crea las tablas y se apaga (credenciales de ms-inventario/.env)
+    image: amazon/aws-cli
+    depends_on: [dynamodb]
+    env_file: ./ms-inventario/.env
+    environment:
+      DYNAMO_URL: http://dynamodb:8000
+    entrypoint: ["/bin/sh", "/init/inventario.sh"]
+    volumes: ["./ms-inventario/db/inventario.sh:/init/inventario.sh:ro"]
+
+  mongo-init:                          # aplica ms-gestion/db/gestion.js en Atlas (idempotente) y se apaga
+    image: mongo:7
+    env_file: ./ms-gestion/.env
+    entrypoint: ["sh", "-c", "mongosh \"$$MONGO_URL\" --quiet /init/gestion.js"]
+    volumes: ["./ms-gestion/db/gestion.js:/init/gestion.js:ro"]
+
+  # ---------- Seguridad y gateway ----------
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: start-dev --import-realm
+    # infra/.env: base (Supabase) y admin. Los secretos de los clientes los toma del .env de quien los usa
+    # (realm-licoreria.json usa ${KEYCLOAK_ADMIN_CLIENT_SECRET} y ${N8N_CLIENT_SECRET}).
+    env_file: [./infra/.env, ./ms-gestion/.env, ./n8n/.env]
+    environment:
+      KC_DB: postgres
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HOSTNAME: http://localhost/auth   # emisor fijo del token
+      KC_PROXY_HEADERS: xforwarded
+    volumes: ["./infra/keycloak:/opt/keycloak/data/import:ro"]   # realm-licoreria.json
+
+  nginx:
+    image: nginx:stable
+    ports: ["80:80"]
+    volumes: ["./infra/nginx.conf:/etc/nginx/nginx.conf:ro"]
+    depends_on: [keycloak]               # el resto se resuelve al llegar la petición (ver infra/nginx.conf)
+
+  # ---------- Dev 1 ----------
+  ms-ventas:
+    build: ./ms-ventas
+    env_file: ./ms-ventas/.env
+    environment:
+      KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
+      INVENTARIO_URL: http://ms-inventario:8000
+      GESTION_URL: http://ms-gestion:3000/graphql
+    depends_on: [keycloak]
+
+  ms-inventario:
+    build: ./ms-inventario
+    env_file: ./ms-inventario/.env
+    environment:
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
+      N8N_WEBHOOK_STOCK_BAJO: http://n8n:5678/webhook/stock-bajo
+    depends_on:
+      dynamodb-init: { condition: service_completed_successfully }
+      keycloak: { condition: service_started }
+
+  n8n:
+    image: n8nio/n8n
+    env_file: ./n8n/.env
+    ports: ["5678:5678"]
+    volumes: ["n8n-data:/home/node/.n8n", "./n8n/workflows:/workflows"]
+
+  # ---------- Dev 2 ----------
+  ms-gestion:
+    build: ./ms-gestion
+    env_file: ./ms-gestion/.env
+    environment:
+      KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
+      KEYCLOAK_ADMIN_URL: http://keycloak:8080/auth
+    depends_on:
+      mongo-init: { condition: service_completed_successfully }
+      keycloak: { condition: service_started }
+
+  web-shell:
+    build: ./web-shell
+
+  mfe-gestion:
+    build: ./mfe-gestion
+
+  mfe-pos:
+    build: ./mfe-pos                     # usa mfe-pos/.env al compilar (variables VITE_*)
+
+  # ---------- Dev 3 ----------
+  ms-ia:
+    build: ./ms-ia
+    env_file: ./ms-ia/.env
+    environment:
+      ROOT_PATH: /api/ia
+      OLLAMA_URL: http://ollama:11434
+      KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
+      VENTAS_URL: http://ms-ventas:8080
+      INVENTARIO_URL: http://ms-inventario:8000
+      GESTION_URL: http://ms-gestion:3000/graphql
+    depends_on: [keycloak]
+
+  ollama:
+    profiles: [llm]
+    image: ollama/ollama
+    volumes: ["ollama-data:/root/.ollama"]
+
+volumes:
+  n8n-data: {}
+  ollama-data: {}

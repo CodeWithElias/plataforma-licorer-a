@@ -1,0 +1,172 @@
+{
+  "realm": "licoreria",
+  "displayName": "Licorería",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 900,
+  "roles": {
+    "realm": [
+      { "name": "ADMIN", "description": "Administra usuarios y configuración" },
+      { "name": "GERENTE", "description": "Reportes, compras y gestión de la sucursal" },
+      { "name": "CAJERO", "description": "Registra ventas en el POS" },
+      { "name": "ALMACEN", "description": "Recibe mercadería y controla stock" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "web-shell",
+      "name": "Shell web (Angular) y MFEs",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "rootUrl": "http://localhost",
+      "redirectUris": ["http://localhost/*", "http://localhost:4200/*"],
+      "webOrigins": ["http://localhost", "http://localhost:4200"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost/*##http://localhost:4200/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audiencia-licoreria-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "licoreria-api", "access.token.claim": "true", "id.token.claim": "false" }
+        }
+      ]
+    },
+    {
+      "clientId": "app-movil",
+      "name": "App móvil (Flutter)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["com.licoreria.app:/oauth2redirect", "com.licoreria.app:/*"],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "com.licoreria.app:/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audiencia-licoreria-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "licoreria-api", "access.token.claim": "true", "id.token.claim": "false" }
+        }
+      ]
+    },
+    {
+      "clientId": "n8n",
+      "name": "n8n (workflows)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${N8N_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audiencia-licoreria-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "licoreria-api", "access.token.claim": "true", "id.token.claim": "false" }
+        }
+      ]
+    },
+    {
+      "clientId": "ms-gestion-admin",
+      "name": "ms-gestion (alta de empleados en Keycloak)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_ADMIN_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audiencia-licoreria-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.client.audience": "licoreria-api", "access.token.claim": "true", "id.token.claim": "false" }
+        }
+      ]
+    },
+    {
+      "clientId": "licoreria-api",
+      "name": "APIs de la plataforma (audiencia del token)",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "username": "admin01",
+      "enabled": true,
+      "email": "admin01@licoreria.local",
+      "emailVerified": true,
+      "firstName": "Ana",
+      "lastName": "Administradora",
+      "credentials": [{ "type": "password", "value": "admin01", "temporary": false }],
+      "realmRoles": ["ADMIN"]
+    },
+    {
+      "username": "gerente01",
+      "enabled": true,
+      "email": "gerente01@licoreria.local",
+      "emailVerified": true,
+      "firstName": "Gabriel",
+      "lastName": "Gerente",
+      "credentials": [{ "type": "password", "value": "gerente01", "temporary": false }],
+      "realmRoles": ["GERENTE"]
+    },
+    {
+      "username": "cajero01",
+      "enabled": true,
+      "email": "cajero01@licoreria.local",
+      "emailVerified": true,
+      "firstName": "Carla",
+      "lastName": "Cajera",
+      "credentials": [{ "type": "password", "value": "cajero01", "temporary": false }],
+      "realmRoles": ["CAJERO"]
+    },
+    {
+      "username": "almacen01",
+      "enabled": true,
+      "email": "almacen01@licoreria.local",
+      "emailVerified": true,
+      "firstName": "Alberto",
+      "lastName": "Almacén",
+      "credentials": [{ "type": "password", "value": "almacen01", "temporary": false }],
+      "realmRoles": ["ALMACEN"]
+    },
+    {
+      "username": "service-account-n8n",
+      "enabled": true,
+      "serviceAccountClientId": "n8n",
+      "realmRoles": ["GERENTE"]
+    },
+    {
+      "username": "service-account-ms-gestion-admin",
+      "enabled": true,
+      "serviceAccountClientId": "ms-gestion-admin",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users", "query-users"]
+      }
+    }
+  ]
+}

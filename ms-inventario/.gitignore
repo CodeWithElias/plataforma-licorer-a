@@ -1,0 +1,17 @@
+.env
+.env.backup
+/vendor/
+/node_modules/
+/storage/*.key
+/storage/pail
+/.phpunit.cache
+.phpunit.result.cache
+*.log
+
+# IDE
+/.idea
+/.vscode
+_ide_helper.php
+.phpactor.json
+.DS_Store
+Thumbs.db

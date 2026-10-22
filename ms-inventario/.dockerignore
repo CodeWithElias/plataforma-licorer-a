@@ -1,0 +1,10 @@
+/vendor
+/node_modules
+.env
+.git
+.idea
+.vscode
+storage/logs/*.log
+storage/framework/cache/data/*
+bootstrap/cache/*.php
+.phpunit.cache

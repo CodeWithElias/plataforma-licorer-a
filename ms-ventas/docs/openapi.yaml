@@ -1,0 +1,362 @@
+openapi: 3.0.3
+info:
+  title: ms-ventas
+  version: 1.0.0
+  description: |
+    Registro de ventas con Saga orquestada (CU02) y sincronización de ventas offline (CU03).
+
+    **Acceso:** por Nginx en `/api/ventas`. Desde otros microservicios, directo en `http://ms-ventas:8080`.
+
+    **Seguridad:** todas las rutas, excepto `/health` y Swagger, exigen `Authorization: Bearer <token>` emitido
+    por Keycloak (realm `licoreria`). Los roles se leen de `realm_access.roles`. Las cuentas de servicio
+    (n8n, tools MCP de ms-ia) tienen rol `GERENTE`.
+
+    **Saga (POST /ventas):** 1) guarda la venta PENDIENTE con pago simulado APROBADO → 2) reserva stock en
+    ms-inventario → 3) registra el ingreso en ms-gestion → 4) confirma la reserva y deja la venta COMPLETADA.
+    Si un paso falla, compensa en orden inverso (anula el ingreso, libera la reserva, cancela la venta y
+    reembolsa el pago). El estado de cada paso queda en `saga_instancia`.
+
+    **Idempotencia:** el `Idempotency-Key` (UUID generado en el cliente) es también el `operationId` de la
+    venta, el `reservaId` en ms-inventario y el `operationId` del ingreso en ms-gestion. Si llega dos veces,
+    la segunda respuesta es la guardada de la primera y no se ejecuta nada.
+
+    Contrato acordado en la semana 1; no se cambia sin avisar a Dev 2 (POS) y Dev 3 (tools MCP).
+servers:
+  - url: http://localhost/api/ventas
+    description: A través de Nginx
+  - url: http://ms-ventas:8080
+    description: Red interna de Docker (servicio a servicio)
+security:
+  - bearer: []
+tags:
+  - name: Ventas
+  - name: Sincronización
+  - name: Sistema
+
+paths:
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Estado del servicio y de PostgreSQL
+      operationId: health
+      security: []
+      responses:
+        "200":
+          description: Servicio disponible
+          content:
+            application/json:
+              example: { status: UP, components: { db: { status: UP } } }
+        "503":
+          description: Algún componente no responde
+
+  /ventas:
+    post:
+      tags: [Ventas]
+      summary: Registra una venta (CU02)
+      operationId: registrarVenta
+      description: |
+        Rol: CAJERO.
+
+        El total, los nombres y los precios los calcula el servidor con el catálogo de ms-inventario;
+        el cliente solo envía códigos y cantidades. El cajero sale del `sub` del token.
+
+        Si el `Idempotency-Key` ya se usó, devuelve exactamente la misma respuesta (mismo código y cuerpo)
+        sin volver a ejecutar la Saga.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VentaRequest" }
+      responses:
+        "201":
+          description: Venta COMPLETADA
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VentaCreada" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: Algún producto no existe en el catálogo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { codigo: PRODUCTO_NO_ENCONTRADO, mensaje: "No existe el producto CER-999" }
+        "409":
+          description: No hay stock suficiente; la venta queda CANCELADA y no se reservó nada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorVenta" }
+              example: { codigo: SIN_STOCK, mensaje: "No hay stock suficiente", ventaId: 8d1c2f7e-93ab-4e0d-8b6a-5f4c3e2d1a90, estado: CANCELADA }
+        "502":
+          description: Falló un paso posterior (p. ej. ms-gestion caído); se compensó y la venta queda CANCELADA
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorVenta" }
+              example: { codigo: SAGA_COMPENSADA, mensaje: "No se pudo registrar el ingreso; venta revertida", ventaId: 8d1c2f7e-93ab-4e0d-8b6a-5f4c3e2d1a90, estado: CANCELADA }
+    get:
+      tags: [Ventas]
+      summary: Ventas por periodo
+      operationId: ventasPorPeriodo
+      description: |
+        Rol: GERENTE (y cuentas de servicio). Lo usa la tool MCP `ventas_por_periodo` de ms-ia y el reporte diario de n8n.
+        Solo devuelve ventas COMPLETADAS.
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          schema: { type: string, format: date-time, example: "2026-10-01T00:00:00-04:00" }
+        - name: hasta
+          in: query
+          required: true
+          description: Exclusivo
+          schema: { type: string, format: date-time, example: "2026-10-08T00:00:00-04:00" }
+        - name: sucursal
+          in: query
+          required: false
+          schema: { type: string, example: SUC-01 }
+      responses:
+        "200":
+          description: Ventas del periodo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VentaResumen" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+
+  /ventas/{id}:
+    get:
+      tags: [Ventas]
+      summary: Detalle de una venta con el estado de su Saga
+      operationId: obtenerVenta
+      description: "Roles: CAJERO, GERENTE."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Venta
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VentaDetalle" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: La venta no existe
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { codigo: VENTA_NO_ENCONTRADA, mensaje: "No existe la venta 8d1c..." }
+
+  /ventas/sync:
+    post:
+      tags: [Sincronización]
+      summary: Sincroniza ventas hechas sin conexión (CU03)
+      operationId: sincronizarVentas
+      description: |
+        Rol: CAJERO.
+
+        Recibe la cola offline del POS y procesa cada venta con la misma Saga de POST /ventas, una por una.
+        El `operationId` de cada venta hace de Idempotency-Key: si ya se procesó, responde DUPLICADO sin
+        ejecutar nada. La respuesta siempre es 200 y trae el resultado de cada ítem en el mismo orden;
+        el POS borra de su cola los OK y DUPLICADO, y muestra los ERROR.
+        Las ventas se guardan con `origen = OFFLINE`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              items: { $ref: "#/components/schemas/VentaOffline" }
+      responses:
+        "200":
+          description: Resultado por venta
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ResultadoSync" }
+              example:
+                - { operationId: 0b9e6c1a-4f2d-4c8e-9a31-2d7f5b8e1c04, resultado: OK, ventaId: 8d1c2f7e-93ab-4e0d-8b6a-5f4c3e2d1a90, numero: 154 }
+                - { operationId: 0b9e6c1a-4f2d-4c8e-9a31-2d7f5b8e1c04, resultado: DUPLICADO, ventaId: 8d1c2f7e-93ab-4e0d-8b6a-5f4c3e2d1a90, numero: 154 }
+                - { operationId: 77aa3b9c-1d2e-4f50-a6b7-c8d9e0f1a2b3, resultado: ERROR, motivo: SIN_STOCK }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de Keycloak (realm licoreria, emisor http://localhost/auth/realms/licoreria)
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID generado en el cliente; es el operationId de la venta en los 3 servicios
+      schema: { type: string, format: uuid }
+
+  responses:
+    NoAutenticado:
+      description: Falta el token o no es válido
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { codigo: NO_AUTENTICADO, mensaje: "Token ausente o inválido" }
+    SinPermiso:
+      description: El token no tiene el rol requerido
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { codigo: SIN_PERMISO, mensaje: "Se requiere el rol CAJERO" }
+    DatosInvalidos:
+      description: El cuerpo, los parámetros o el Idempotency-Key no son válidos
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { codigo: DATOS_INVALIDOS, mensaje: "Falta el encabezado Idempotency-Key" }
+
+  schemas:
+    Item:
+      type: object
+      required: [productoCodigo, cantidad]
+      properties:
+        productoCodigo: { type: string, example: CER-001 }
+        cantidad: { type: integer, minimum: 1, example: 6 }
+
+    Pago:
+      type: object
+      required: [metodo]
+      properties:
+        metodo: { type: string, enum: [EFECTIVO, TARJETA, QR] }
+
+    VentaRequest:
+      type: object
+      required: [sucursalId, items, pago]
+      properties:
+        sucursalId: { type: string, example: SUC-01 }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/Item" }
+        pago: { $ref: "#/components/schemas/Pago" }
+
+    VentaOffline:
+      allOf:
+        - $ref: "#/components/schemas/VentaRequest"
+        - type: object
+          required: [operationId, fechaLocal]
+          properties:
+            operationId: { type: string, format: uuid, description: Generado en el POS al vender sin conexión }
+            fechaLocal: { type: string, format: date-time, description: Hora de la venta en el POS }
+
+    EstadoVenta:
+      type: string
+      enum: [PENDIENTE, COMPLETADA, CANCELADA]
+
+    VentaCreada:
+      type: object
+      required: [id, numero, total, estado]
+      properties:
+        id: { type: string, format: uuid }
+        numero: { type: integer, format: int64, example: 154 }
+        total: { type: number, format: double, example: 72.00 }
+        estado: { $ref: "#/components/schemas/EstadoVenta" }
+      example: { id: 8d1c2f7e-93ab-4e0d-8b6a-5f4c3e2d1a90, numero: 154, total: 72.00, estado: COMPLETADA }
+
+    DetalleItem:
+      type: object
+      required: [productoCodigo, productoNombre, cantidad, precioUnitario, subtotal]
+      properties:
+        productoCodigo: { type: string, example: CER-001 }
+        productoNombre: { type: string, example: "Cerveza Paceña 620 ml" }
+        cantidad: { type: integer, example: 6 }
+        precioUnitario: { type: number, format: double, example: 12.00 }
+        subtotal: { type: number, format: double, example: 72.00 }
+
+    VentaResumen:
+      type: object
+      required: [numero, fecha, total, items]
+      properties:
+        numero: { type: integer, format: int64 }
+        fecha: { type: string, format: date-time }
+        sucursalId: { type: string }
+        total: { type: number, format: double }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DetalleItem" }
+
+    VentaDetalle:
+      type: object
+      required: [id, numero, operationId, sucursalId, cajeroId, fecha, total, estado, origen, items, pago, saga]
+      properties:
+        id: { type: string, format: uuid }
+        numero: { type: integer, format: int64 }
+        operationId: { type: string, format: uuid }
+        sucursalId: { type: string }
+        cajeroId: { type: string, description: "sub del token de Keycloak" }
+        fecha: { type: string, format: date-time }
+        total: { type: number, format: double }
+        estado: { $ref: "#/components/schemas/EstadoVenta" }
+        origen: { type: string, enum: [ONLINE, OFFLINE] }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DetalleItem" }
+        pago:
+          type: object
+          properties:
+            metodo: { type: string, enum: [EFECTIVO, TARJETA, QR] }
+            monto: { type: number, format: double }
+            estado: { type: string, enum: [APROBADO, REEMBOLSADO] }
+        saga:
+          type: object
+          properties:
+            pasoActual: { type: string, enum: [CREAR_VENTA, RESERVAR_STOCK, REGISTRAR_INGRESO, CONFIRMAR] }
+            estado: { type: string, enum: [EN_CURSO, COMPLETADA, COMPENSANDO, COMPENSADA, FALLIDA] }
+            reservaId: { type: string, nullable: true }
+            ingresoId: { type: string, nullable: true }
+            error: { type: string, nullable: true }
+
+    ResultadoSync:
+      type: object
+      required: [operationId, resultado]
+      properties:
+        operationId: { type: string, format: uuid }
+        resultado: { type: string, enum: [OK, DUPLICADO, ERROR] }
+        ventaId: { type: string, format: uuid, description: Presente en OK y DUPLICADO }
+        numero: { type: integer, format: int64, description: Presente en OK y DUPLICADO }
+        motivo:
+          type: string
+          description: Presente en ERROR (mismo código que devolvería POST /ventas)
+          enum: [SIN_STOCK, PRODUCTO_NO_ENCONTRADO, SAGA_COMPENSADA, DATOS_INVALIDOS, ERROR_INTERNO]
+
+    Error:
+      type: object
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          description: Código estable para que el cliente decida qué hacer
+          enum: [NO_AUTENTICADO, SIN_PERMISO, DATOS_INVALIDOS, PRODUCTO_NO_ENCONTRADO, VENTA_NO_ENCONTRADA,
+                 SIN_STOCK, SAGA_COMPENSADA, ERROR_INTERNO]
+        mensaje: { type: string }
+
+    ErrorVenta:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            ventaId: { type: string, format: uuid }
+            estado: { $ref: "#/components/schemas/EstadoVenta" }
