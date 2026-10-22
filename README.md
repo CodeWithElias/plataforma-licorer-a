@@ -90,6 +90,10 @@ docker compose down                                # apagar
 docker compose down -v                             # apagar y borrar los datos
 ```
 
+## Pruebas con Postman
+
+`docs/postman/` tiene una colección con las pruebas de los servicios de Dev 1 (tokens reales de Keycloak y la respuesta esperada de cada petición) y su entorno. Importar los dos archivos, seleccionar el entorno *Licorería – local* y poner en `n8n_client_secret` el `N8N_CLIENT_SECRET` de `n8n/.env`.
+
 ## URLs y puertos
 
 Cada servicio tiene **un puerto propio**, el mismo dentro y fuera de Docker. La aplicación se usa siempre por el **gateway** (`http://localhost`): Nginx actúa de proxy inverso, recibe la petición y llama él mismo a la URL real del servicio (por ejemplo `/api/ventas/ventas` → `http://ms-ventas:8080/ventas`). Los puertos directos sirven para probar o depurar cada servicio por separado.

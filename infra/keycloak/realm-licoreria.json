@@ -8,10 +8,22 @@
   "accessTokenLifespan": 900,
   "roles": {
     "realm": [
-      { "name": "ADMIN", "description": "Administra usuarios y configuración" },
-      { "name": "GERENTE", "description": "Reportes, compras y gestión de la sucursal" },
-      { "name": "CAJERO", "description": "Registra ventas en el POS" },
-      { "name": "ALMACEN", "description": "Recibe mercadería y controla stock" }
+      {
+        "name": "ADMIN",
+        "description": "Administra usuarios y configuración"
+      },
+      {
+        "name": "GERENTE",
+        "description": "Reportes, compras y gestión de la sucursal"
+      },
+      {
+        "name": "CAJERO",
+        "description": "Registra ventas en el POS"
+      },
+      {
+        "name": "ALMACEN",
+        "description": "Recibe mercadería y controla stock"
+      }
     ]
   },
   "clients": [
@@ -25,8 +37,14 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "rootUrl": "http://localhost",
-      "redirectUris": ["http://localhost/*", "http://localhost:4200/*"],
-      "webOrigins": ["http://localhost", "http://localhost:4200"],
+      "redirectUris": [
+        "http://localhost/*",
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [
+        "http://localhost",
+        "http://localhost:4200"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost/*##http://localhost:4200/*"
@@ -36,7 +54,11 @@
           "name": "audiencia-licoreria-api",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
-          "config": { "included.client.audience": "licoreria-api", "access.token.claim": "true", "id.token.claim": "false" }
+          "config": {
+            "included.client.audience": "licoreria-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
         }
       ]
     },
@@ -49,8 +71,13 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["com.licoreria.app:/oauth2redirect", "com.licoreria.app:/*"],
-      "webOrigins": ["+"],
+      "redirectUris": [
+        "com.licoreria.app:/oauth2redirect",
+        "com.licoreria.app:/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "com.licoreria.app:/*"
@@ -60,7 +87,11 @@
           "name": "audiencia-licoreria-api",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
-          "config": { "included.client.audience": "licoreria-api", "access.token.claim": "true", "id.token.claim": "false" }
+          "config": {
+            "included.client.audience": "licoreria-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
         }
       ]
     },
@@ -79,7 +110,11 @@
           "name": "audiencia-licoreria-api",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
-          "config": { "included.client.audience": "licoreria-api", "access.token.claim": "true", "id.token.claim": "false" }
+          "config": {
+            "included.client.audience": "licoreria-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
         }
       ]
     },
@@ -98,7 +133,11 @@
           "name": "audiencia-licoreria-api",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
-          "config": { "included.client.audience": "licoreria-api", "access.token.claim": "true", "id.token.claim": "false" }
+          "config": {
+            "included.client.audience": "licoreria-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
         }
       ]
     },
@@ -121,8 +160,17 @@
       "emailVerified": true,
       "firstName": "Ana",
       "lastName": "Administradora",
-      "credentials": [{ "type": "password", "value": "admin01", "temporary": false }],
-      "realmRoles": ["ADMIN"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin01",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADMIN",
+        "default-roles-licoreria"
+      ]
     },
     {
       "username": "gerente01",
@@ -131,8 +179,17 @@
       "emailVerified": true,
       "firstName": "Gabriel",
       "lastName": "Gerente",
-      "credentials": [{ "type": "password", "value": "gerente01", "temporary": false }],
-      "realmRoles": ["GERENTE"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "gerente01",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "GERENTE",
+        "default-roles-licoreria"
+      ]
     },
     {
       "username": "cajero01",
@@ -141,8 +198,17 @@
       "emailVerified": true,
       "firstName": "Carla",
       "lastName": "Cajera",
-      "credentials": [{ "type": "password", "value": "cajero01", "temporary": false }],
-      "realmRoles": ["CAJERO"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "cajero01",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "CAJERO",
+        "default-roles-licoreria"
+      ]
     },
     {
       "username": "almacen01",
@@ -151,21 +217,36 @@
       "emailVerified": true,
       "firstName": "Alberto",
       "lastName": "Almacén",
-      "credentials": [{ "type": "password", "value": "almacen01", "temporary": false }],
-      "realmRoles": ["ALMACEN"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "almacen01",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ALMACEN",
+        "default-roles-licoreria"
+      ]
     },
     {
       "username": "service-account-n8n",
       "enabled": true,
       "serviceAccountClientId": "n8n",
-      "realmRoles": ["GERENTE"]
+      "realmRoles": [
+        "GERENTE"
+      ]
     },
     {
       "username": "service-account-ms-gestion-admin",
       "enabled": true,
       "serviceAccountClientId": "ms-gestion-admin",
       "clientRoles": {
-        "realm-management": ["manage-users", "view-users", "query-users"]
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users"
+        ]
       }
     }
   ]
