@@ -7,7 +7,7 @@ export default withNativeFederation({
   name: 'mfe-gestion',
 
   exposes: {
-    './Component': './src/app/gestion/gestion.ts',
+    './routes': './src/app/rutas.ts',
   },
 
   //shareScope: autoShareScope({level: 'minor'}),

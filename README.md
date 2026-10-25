@@ -146,6 +146,7 @@ El realm se importa solo desde `infra/keycloak/realm-licoreria.json` al arrancar
 | `app-movil` | Público, Authorization Code + PKCE (S256) | Flutter. Redirect: `com.licoreria.app:/oauth2redirect` |
 | `n8n` | Confidencial, Client Credentials (secreto `N8N_CLIENT_SECRET` de `n8n/.env`) | Workflows; su cuenta de servicio tiene rol `GERENTE` |
 | `ms-gestion-admin` | Confidencial, Client Credentials (secreto `KEYCLOAK_ADMIN_CLIENT_SECRET` de `ms-gestion/.env`) | ms-gestion crea/consulta usuarios en Keycloak |
+| `ms-ventas` | Confidencial, Client Credentials (secreto `VENTAS_CLIENT_SECRET` de `ms-ventas/.env`) | Su cuenta de servicio tiene rol `CAJERO`; la usa la tarea que reintenta compensaciones de la Saga |
 | `licoreria-api` | Solo audiencia | Los microservicios pueden exigir `aud = licoreria-api` |
 
 Token de prueba en Postman/Bruno: Authorization → OAuth 2.0 → *Authorization Code (With PKCE)*, Auth URL `http://localhost/auth/realms/licoreria/protocol/openid-connect/auth`, Token URL `http://localhost/auth/realms/licoreria/protocol/openid-connect/token`, Client ID `web-shell`, Callback `http://localhost/callback`.

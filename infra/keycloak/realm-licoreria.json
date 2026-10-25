@@ -14,7 +14,7 @@
       },
       {
         "name": "GERENTE",
-        "description": "Reportes, compras y gestión de la sucursal"
+        "description": "Reportes, compras y gestión de la licorería"
       },
       {
         "name": "CAJERO",
@@ -142,6 +142,29 @@
       ]
     },
     {
+      "clientId": "ms-ventas",
+      "name": "ms-ventas (reintento de compensaciones de la Saga)",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${VENTAS_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audiencia-licoreria-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "licoreria-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "licoreria-api",
       "name": "APIs de la plataforma (audiencia del token)",
       "enabled": true,
@@ -248,6 +271,21 @@
           "query-users"
         ]
       }
+    },
+    {
+      "username": "service-account-ms-ventas",
+      "enabled": true,
+      "serviceAccountClientId": "ms-ventas",
+      "realmRoles": [
+        "CAJERO"
+      ]
     }
-  ]
+  ],
+  "displayNameHtml": "Licorería",
+  "loginTheme": "licoreria",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "es"
+  ],
+  "defaultLocale": "es"
 }

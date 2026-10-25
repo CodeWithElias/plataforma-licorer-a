@@ -1,31 +1,136 @@
 :host {
   display: block;
-  font-family: system-ui, sans-serif;
+  min-height: 100vh;
 }
 
-header {
+.barra {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  padding: 0.75rem 1.5rem;
-  background: #7a1f2b;
-}
-
-header a {
-  color: #fff;
-  text-decoration: none;
+  gap: 2rem;
+  height: 64px;
+  padding: 0 1.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--borde);
 }
 
 .marca {
-  font-weight: 600;
-  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: var(--tinta);
+}
+
+.marca-icono {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--degradado);
+  color: #fff;
+  box-shadow: 0 6px 14px -6px rgba(124, 58, 237, 0.7);
+}
+
+.marca-icono svg {
+  width: 20px;
+  height: 20px;
+}
+
+.marca-texto {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 nav {
   display: flex;
-  gap: 1rem;
+  gap: 0.35rem;
+  flex: 1;
+}
+
+nav a {
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  color: var(--gris);
+  text-decoration: none;
+  font-weight: 550;
+  font-size: 0.95rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+nav a:hover {
+  background: var(--lila-50);
+  color: var(--lila-700);
 }
 
 nav a.activo {
-  text-decoration: underline;
+  background: var(--lila-100);
+  color: var(--lila-700);
+}
+
+.usuario {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--lila-100);
+  color: var(--lila-700);
+  font-weight: 700;
+}
+
+.datos {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.datos strong {
+  font-size: 0.9rem;
+}
+
+.datos small {
+  color: var(--gris-claro);
+  font-size: 0.78rem;
+}
+
+.usuario button {
+  margin-left: 0.5rem;
+  padding: 0.45rem 0.95rem;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--tinta);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.usuario button:hover {
+  border-color: var(--lila-300);
+  color: var(--lila-700);
+}
+
+@media (max-width: 720px) {
+  .barra {
+    gap: 1rem;
+    padding: 0 1rem;
+  }
+  .datos,
+  .marca-texto {
+    display: none;
+  }
 }

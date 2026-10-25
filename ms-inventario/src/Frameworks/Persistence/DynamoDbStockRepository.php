@@ -18,17 +18,10 @@ class DynamoDbStockRepository implements StockRepository
         $this->m = new Marshaler;
     }
 
-    public function porSucursal(string $sucursalId): array
+    public function todos(): array
     {
-        // La clave es productoCodigo + sucursalId; con pocos productos un Scan filtrado es suficiente
-        $params = [
-            'TableName' => self::TABLA,
-            'FilterExpression' => 'sucursalId = :s',
-            'ExpressionAttributeValues' => [':s' => ['S' => $sucursalId]],
-        ];
-
         $stock = [];
-        foreach ($this->db->getPaginator('Scan', $params) as $pagina) {
+        foreach ($this->db->getPaginator('Scan', ['TableName' => self::TABLA]) as $pagina) {
             foreach ($pagina['Items'] as $item) {
                 $stock[] = self::aStock($this->m->unmarshalItem($item));
             }
@@ -38,13 +31,13 @@ class DynamoDbStockRepository implements StockRepository
         return $stock;
     }
 
-    public function buscarVarios(string $sucursalId, array $codigos): array
+    public function buscarVarios(array $codigos): array
     {
         $stock = [];
         foreach (array_unique($codigos) as $codigo) {
             $r = $this->db->getItem([
                 'TableName' => self::TABLA,
-                'Key' => self::clave($codigo, $sucursalId),
+                'Key' => self::clave($codigo),
                 'ConsistentRead' => true,
             ]);
             if (isset($r['Item'])) {
@@ -55,26 +48,25 @@ class DynamoDbStockRepository implements StockRepository
         return $stock;
     }
 
-    public function marcarAvisoEnviado(string $productoCodigo, string $sucursalId): void
+    public function marcarAvisoEnviado(string $productoCodigo): void
     {
         $this->db->updateItem([
             'TableName' => self::TABLA,
-            'Key' => self::clave($productoCodigo, $sucursalId),
+            'Key' => self::clave($productoCodigo),
             'UpdateExpression' => 'SET avisoEnviado = :si',
             'ExpressionAttributeValues' => [':si' => ['BOOL' => true]],
         ]);
     }
 
-    public static function clave(string $productoCodigo, string $sucursalId): array
+    public static function clave(string $productoCodigo): array
     {
-        return ['productoCodigo' => ['S' => $productoCodigo], 'sucursalId' => ['S' => $sucursalId]];
+        return ['productoCodigo' => ['S' => $productoCodigo]];
     }
 
     private static function aStock(array $i): Stock
     {
         return new Stock(
             productoCodigo: $i['productoCodigo'],
-            sucursalId: $i['sucursalId'],
             cantidad: (int) $i['cantidad'],
             reservado: (int) $i['reservado'],
             minimo: (int) $i['minimo'],

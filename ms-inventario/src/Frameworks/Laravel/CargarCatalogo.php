@@ -17,11 +17,9 @@ class CargarCatalogo extends Command
 {
     protected $signature = 'inventario:seed {--forzar : Sobrescribe productos y stock existentes}';
 
-    protected $description = 'Carga los 20 productos de ejemplo y su stock en SUC-01 y SUC-02';
+    protected $description = 'Carga los 20 productos de ejemplo y su stock';
 
-    private const SUCURSALES = ['SUC-01', 'SUC-02'];
-
-    /** codigo, nombre, marca, tipo, grado, ml, precio, etiqueta, cantidad SUC-01, mínimo */
+    /** codigo, nombre, marca, tipo, grado, ml, precio, etiqueta, cantidad, mínimo */
     private const PRODUCTOS = [
         ['CER-001', 'Cerveza Paceña 620 ml', 'Paceña', 'CERVEZA', 4.8, 620, 12.00, 'pacena_620', 48, 12],
         ['CER-002', 'Cerveza Paceña Lata 355 ml', 'Paceña', 'CERVEZA', 4.8, 355, 8.00, 'pacena_lata', 72, 24],
@@ -57,13 +55,10 @@ class CargarCatalogo extends Command
                 'gradoAlcoholico' => $grado, 'volumenMl' => $ml, 'precio' => $precio, 'etiquetaModelo' => $etiqueta,
             ]), 'codigo', $forzar);
 
-            foreach (self::SUCURSALES as $i => $sucursal) {
-                $stock += $this->poner($db, 'Stock', $m->marshalItem([
-                    'productoCodigo' => $codigo, 'sucursalId' => $sucursal,
-                    'cantidad' => $i === 0 ? $cantidad : intdiv($cantidad, 2) + $minimo,
-                    'reservado' => 0, 'minimo' => $minimo, 'version' => 1, 'avisoEnviado' => false,
-                ]), 'productoCodigo', $forzar);
-            }
+            $stock += $this->poner($db, 'Stock', $m->marshalItem([
+                'productoCodigo' => $codigo, 'cantidad' => $cantidad,
+                'reservado' => 0, 'minimo' => $minimo, 'version' => 1, 'avisoEnviado' => false,
+            ]), 'productoCodigo', $forzar);
         }
 
         $this->info("Catálogo listo: {$productos} productos y {$stock} registros de stock nuevos".($forzar ? ' (forzado)' : ''));

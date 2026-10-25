@@ -1,2 +1,8 @@
 fastapi==0.159.1
 uvicorn[standard]==0.54.0
+pyjwt[crypto]==2.15.1
+python-multipart==0.0.32
+pillow==13.0.0
+numpy>=1.26
+# Inferencia del clasificador (runtime ligero de TFLite)
+ai-edge-litert==2.3.0

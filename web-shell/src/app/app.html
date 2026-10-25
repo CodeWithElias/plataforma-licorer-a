@@ -1,9 +1,30 @@
-<header>
-  <a class="marca" routerLink="/">Licorería</a>
+<header class="barra">
+  <a class="marca" routerLink="/">
+    <span class="marca-icono" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 22h8M12 15v7M5 3h14l-1.5 7a5.5 5.5 0 0 1-11 0z" />
+      </svg>
+    </span>
+    <span class="marca-texto">Licorería</span>
+  </a>
+
   <nav>
-    <a routerLink="/pos" routerLinkActive="activo">POS</a>
-    <a routerLink="/gestion" routerLinkActive="activo">Gestión</a>
+    @if (sesion.tieneRol('CAJERO', 'ADMIN')) {
+      <a routerLink="/pos" routerLinkActive="activo">Punto de venta</a>
+    }
+    @if (sesion.tieneRol('GERENTE', 'ADMIN')) {
+      <a routerLink="/gestion" routerLinkActive="activo">Gestión</a>
+    }
   </nav>
+
+  <div class="usuario">
+    <span class="avatar" aria-hidden="true">{{ inicial }}</span>
+    <span class="datos">
+      <strong>{{ sesion.usuario }}</strong>
+      <small>{{ rolPrincipal }}</small>
+    </span>
+    <button type="button" (click)="sesion.salir()">Salir</button>
+  </div>
 </header>
 <main>
   <router-outlet />

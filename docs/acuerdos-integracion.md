@@ -36,7 +36,7 @@ Cómo interpreta ms-ventas cada respuesta:
 | `DELETE /stock/reservas/{id}` | 200 o 404 | Compensación hecha (404 = la reserva nunca se creó) |
 | Cualquiera | 5xx, timeout | Reintenta; agotados los reintentos, compensa (502 al POS) |
 
-### Con ms-gestion (Dev 2) – a confirmar con Dev 2
+### Con ms-gestion (Dev 2) – implementado en la semana 2
 
 URL: `http://ms-gestion:3000/graphql` (`POST`, `Content-Type: application/json`, `Authorization: Bearer <token del cajero>`).
 
@@ -44,7 +44,7 @@ URL: `http://ms-gestion:3000/graphql` (`POST`, `Content-Type: application/json`,
 mutation RegistrarIngreso($in: IngresoInput!) {
   registrarIngreso(input: $in) { id estado }
 }
-# variables: { "in": { "operationId": "<uuid>", "ventaId": "<uuid>", "sucursalId": "SUC-01", "monto": 72.0 } }
+# variables: { "in": { "operationId": "<uuid>", "ventaId": "<uuid>", "monto": 72.0 } }
 
 mutation AnularIngreso($operationId: String!) {
   anularIngreso(operationId: $operationId) { id estado }
@@ -56,28 +56,31 @@ Lo que necesita ms-ventas de ms-gestion:
 1. **`registrarIngreso` idempotente:** si el `operationId` ya existe, devuelve el ingreso existente (no error). Lo garantiza el índice único `ingresos.operationId` de `db/gestion.js`.
 2. **`anularIngreso` idempotente:** si ya está `ANULADO`, lo devuelve tal cual. Si no existe, responde un error GraphQL con `extensions.code = "INGRESO_NO_ENCONTRADO"`, que ms-ventas toma como compensación hecha.
 3. Cualquier otro error (`errors[]` en la respuesta, HTTP distinto de 200 o timeout) se trata como fallo del paso → compensación.
-4. Mientras ms-gestion no esté listo, ms-ventas usa un `GestionPort` falso que responde OK o falla a pedido.
+4. Las compensaciones son independientes: si ms-gestion está caído, la reserva se libera y la venta se cancela al instante; la anulación del ingreso queda pendiente (saga `COMPENSANDO`) y la tarea de ms-ventas la reintenta cada 30 s con el token del cliente `ms-ventas` (rol CAJERO) hasta dejarla `COMPENSADA`.
 
-## 2. Tools MCP de ms-ia (Dev 3) – a confirmar con Dev 3
+## 2. Tools MCP de ms-ia (Dev 3) – semana 3 (detalle en `ms-ia/docs/tools-mcp.md`)
 
 Las tools llaman directo a los servicios dueños y reenvían el token del usuario o de n8n que llamó al agente. Todas las rutas exigen al menos rol `GERENTE` (o `ALMACEN` para stock), que tienen el gerente y la cuenta de servicio de n8n.
 
 | Tool | Servicio | Llamada | Rol |
 |---|---|---|---|
 | `buscar_producto` | ms-inventario | `GET http://ms-inventario:8001/productos?tipo=` y `GET /productos/{codigo}` | cualquiera con token |
-| `stock_actual` | ms-inventario | `GET http://ms-inventario:8001/stock?sucursal=SUC-01` | GERENTE, ALMACEN |
-| `ventas_por_periodo` | ms-ventas | `GET http://ms-ventas:8080/ventas?desde=&hasta=&sucursal=` (fechas ISO 8601, `hasta` exclusivo) | GERENTE |
+| `stock_actual` | ms-inventario | `GET http://ms-inventario:8001/stock` | GERENTE, ALMACEN |
+| `ventas_por_periodo` | ms-ventas | `GET http://ms-ventas:8080/ventas?desde=&hasta=` (fechas ISO 8601, `hasta` exclusivo) | GERENTE |
 | `crear_orden_compra` | ms-gestion | mutation `crearOrdenCompra(input: { proveedorId, origen: AGENTE, lineas })` | GERENTE |
 
 ## 3. Aviso de stock bajo (CU06) – ms-inventario → n8n → ms-ia
 
 1. Al confirmar una reserva, si `cantidad < minimo` y no se avisó antes, ms-inventario llama a
-   `POST http://n8n:5678/webhook/stock-bajo` con `{ productoCodigo, sucursalId, cantidad, minimo }`.
+   `POST http://n8n:5678/webhook/stock-bajo` con `{ productoCodigo, cantidad, minimo }`.
 2. n8n obtiene un token con su cliente `n8n` (client credentials) y llama a
-   `POST http://ms-ia:8002/agentes/reabastecimiento` con el mismo cuerpo. **Ruta exacta a confirmar con Dev 3.**
+   `POST http://ms-ia:8002/agentes/reabastecimiento` con el mismo cuerpo. Ruta fijada en `ms-ia/docs/openapi.yaml`.
 3. Si el agente crea la orden, n8n envía el correo al gerente.
 
-## Pendientes de confirmar
+## Estado
 
-- [ ] Dev 2: forma de `registrarIngreso` / `anularIngreso` y el código `INGRESO_NO_ENCONTRADO`.
-- [ ] Dev 3: tabla de tools MCP y ruta del agente de reabastecimiento.
+- [x] `registrarIngreso` / `anularIngreso` con `INGRESO_NO_ENCONTRADO` (ms-gestion, semana 2).
+- [x] Saga de ms-ventas contra ms-inventario y ms-gestion reales, con reintento de compensaciones (semana 2).
+- [x] Lista de tools MCP (`ms-ia/docs/tools-mcp.md`) y ruta del agente de reabastecimiento.
+- [ ] Servidor MCP, agentes y workflows de n8n (semana 3).
+- [ ] Login de la app móvil desde un dispositivo: `KC_HOSTNAME` con la IP de la PC (ver `app-movil/README.md`).

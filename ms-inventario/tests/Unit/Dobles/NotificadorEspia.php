@@ -10,9 +10,9 @@ class NotificadorEspia implements NotificadorStockBajo
     /** @var list<array> */
     public array $avisos = [];
 
-    public function notificar(string $productoCodigo, string $sucursalId, int $cantidad, int $minimo): bool
+    public function notificar(string $productoCodigo, int $cantidad, int $minimo): bool
     {
-        $this->avisos[] = compact('productoCodigo', 'sucursalId', 'cantidad', 'minimo');
+        $this->avisos[] = compact('productoCodigo', 'cantidad', 'minimo');
 
         return true;
     }

@@ -24,12 +24,26 @@ describe('ms-gestion (e2e)', () => {
       .expect({ status: 'DOWN', servicio: 'ms-gestion', components: { mongodb: { status: 'DOWN', error: 'Falta MONGO_URL' } } });
   });
 
-  it('query salud', () => {
+  it('query salud no exige token', () => {
     return request(app.getHttpServer())
       .post('/graphql')
       .send({ query: '{ salud }' })
       .expect(200)
       .expect({ data: { salud: 'ok' } });
+  });
+
+  it('query yo sin token responde no autenticado', async () => {
+    const res = await request(app.getHttpServer()).post('/graphql').send({ query: '{ yo { usuario roles } }' });
+    expect(res.body.data).toBeNull();
+    expect(res.body.errors[0].message).toBe('Unauthorized');
+  });
+
+  it('query yo con token falso responde no autenticado', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/graphql')
+      .set('Authorization', 'Bearer abc.def.ghi')
+      .send({ query: '{ yo { usuario } }' });
+    expect(res.body.errors[0].message).toBe('Unauthorized');
   });
 
   afterEach(async () => {

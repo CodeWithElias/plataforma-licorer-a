@@ -1,1 +1,37 @@
-/* You can add global styles to this file, and also import other style files */
+/* Identidad de la Plataforma Licorería: blanco y lila. Los micro frontends usan estas mismas variables. */
+:root {
+  --lila-50: #f7f4ff;
+  --lila-100: #efe9ff;
+  --lila-200: #ddd2fe;
+  --lila-300: #c4b0fb;
+  --lila-500: #8b5cf6;
+  --lila-600: #7c3aed;
+  --lila-700: #6a2fd0;
+  --tinta: #241a38;
+  --gris: #6c6880;
+  --gris-claro: #9a96ab;
+  --borde: #ebe7f4;
+  --fondo: #faf9fd;
+  --verde: #12805c;
+  --verde-fondo: #e9f8f1;
+  --rojo: #c0264b;
+  --rojo-fondo: #fdecf0;
+  --radio: 14px;
+  --sombra: 0 1px 2px rgba(36, 26, 56, 0.04), 0 8px 24px -12px rgba(76, 29, 149, 0.18);
+  --degradado: linear-gradient(135deg, var(--lila-500), var(--lila-700));
+  --fuente: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--fondo);
+  color: var(--tinta);
+  font-family: var(--fuente);
+  -webkit-font-smoothing: antialiased;
+}

@@ -49,6 +49,25 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Cámara para escanear productos (CU04) -->
+	<key>NSCameraUsageDescription</key>
+	<string>La cámara se usa para reconocer los productos.</string>
+	<!-- Redirección del login de Keycloak (flutter_appauth): com.licoreria.app:/oauth2redirect -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.licoreria.app</string>
+			</array>
+		</dict>
+	</array>
+	<!-- En desarrollo el servidor es http://<IP de la PC> (sin HTTPS) -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

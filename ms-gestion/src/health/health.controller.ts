@@ -1,14 +1,17 @@
-import { Controller, Get, HttpStatus, OnModuleDestroy, Res } from '@nestjs/common';
+import { Controller, Get, HttpStatus, Inject, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { MongoClient } from 'mongodb';
+import type { Db } from 'mongodb';
+import { Publico } from '../compartido/auth/decoradores.js';
+import { MONGO_DB } from '../compartido/mongo/mongo.module.js';
 
 /**
- * GET /health: estado del servicio y de su conexión a MongoDB (Atlas).
+ * GET /health: estado del servicio y de su conexión a MongoDB (Atlas). No exige token.
  */
 @Controller('health')
-export class HealthController implements OnModuleDestroy {
-  private cliente?: MongoClient;
+export class HealthController {
+  constructor(@Inject(MONGO_DB) private readonly db: Db) {}
 
+  @Publico()
   @Get()
   async health(@Res({ passthrough: true }) res: Response) {
     const mongodb = await this.estadoMongo();
@@ -17,19 +20,12 @@ export class HealthController implements OnModuleDestroy {
     return { status: up ? 'UP' : 'DOWN', servicio: 'ms-gestion', components: { mongodb } };
   }
 
-  async onModuleDestroy() {
-    await this.cliente?.close();
-  }
-
   private async estadoMongo() {
-    const url = process.env.MONGO_URL;
-    if (!url) return { status: 'DOWN', error: 'Falta MONGO_URL' };
+    if (!process.env.MONGO_URL) return { status: 'DOWN', error: 'Falta MONGO_URL' };
     try {
-      this.cliente ??= new MongoClient(url, { serverSelectionTimeoutMS: 5000 });
-      const db = this.cliente.db(process.env.MONGO_DB ?? 'gestion');
-      await db.command({ ping: 1 });
-      const colecciones = (await db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name).sort();
-      return { status: 'UP', base: db.databaseName, colecciones };
+      await this.db.command({ ping: 1 });
+      const colecciones = (await this.db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name).sort();
+      return { status: 'UP', base: this.db.databaseName, colecciones };
     } catch (e) {
       return { status: 'DOWN', error: e instanceof Error ? e.message : String(e) };
     }

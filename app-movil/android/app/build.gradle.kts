@@ -23,6 +23,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Redirección del login de Keycloak (flutter_appauth): com.licoreria.app:/oauth2redirect
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.licoreria.app"
     }
 
     buildTypes {

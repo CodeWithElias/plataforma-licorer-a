@@ -9,9 +9,9 @@ class ProductoNoEncontrado extends ErrorDeDominio
         return new self("No existe el producto {$codigo}");
     }
 
-    public static function enSucursal(string $codigo, string $sucursalId): self
+    public static function sinStock(string $codigo): self
     {
-        return new self("{$codigo} no tiene stock en {$sucursalId}");
+        return new self("{$codigo} no tiene stock registrado");
     }
 
     public function codigo(): string

@@ -1,5 +1,10 @@
 .venv
 __pycache__
 *.pyc
+.pytest_cache
 .env
 modelos
+dataset
+dataset-prueba
+entrenamiento
+tests

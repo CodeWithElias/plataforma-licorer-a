@@ -11,7 +11,9 @@ Micro frontend de gestión de la Plataforma Licorería: proveedores (CU05) y rep
 
 ## Cómo se integra con el Shell
 
-`federation.config.mjs` expone `./Component` (`src/app/gestion/gestion.ts`). El Shell lo carga en la ruta `/gestion` leyendo `/mfe-gestion/remoteEntry.json`. El build de producción usa `baseHref: /mfe-gestion/`.
+`federation.config.mjs` expone `./routes` (`src/app/rutas.ts`): las rutas del módulo con su propio Apollo. El Shell las monta en `/gestion` leyendo `/mfe-gestion/remoteEntry.json`. El build de producción usa `baseHref: /mfe-gestion/`.
+
+Apollo usa el `HttpClient` del Shell, cuyo interceptor agrega el token de Keycloak a `/graphql`. Abierto solo (sin el Shell) no hay sesión: las pantallas piden abrir Gestión desde `http://localhost/gestion`.
 
 ## Correrlo con todo el sistema
 
@@ -26,6 +28,18 @@ npm install
 npx ng serve       # http://localhost:4201
 ```
 
-## Estado
+## Pantallas
 
-Esqueleto: el componente `Gestion` es un marcador. Pendiente: Apollo Angular, lista y formulario de proveedores, pantalla de reportes con ECharts.
+| Ruta (dentro de `/gestion`) | Qué hace | Estado |
+|---|---|---|
+| `proveedores` | Lista con filtro activos/inactivos | ✅ CU05 |
+| `proveedores/nuevo`, `proveedores/:id` | Formulario de alta y edición (NIT, razón social, contacto, productos, activo) | ✅ CU05 |
+| `reportes` | Reporte por lenguaje natural con ECharts y exportación | Semana 3 (CU07) |
+
+Los errores de ms-gestion se muestran según `errors[].extensions.code` (p. ej. `NIT_DUPLICADO` → "Ya existe un proveedor con ese NIT").
+
+## Pruebas
+
+```sh
+npx ng test --watch=false
+```

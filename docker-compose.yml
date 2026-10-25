@@ -45,14 +45,16 @@ services:
     image: quay.io/keycloak/keycloak:26.4
     command: start-dev --import-realm
     # infra/.env: base (Supabase) y admin. Los secretos de los clientes los toma del .env de quien los usa
-    # (realm-licoreria.json usa ${KEYCLOAK_ADMIN_CLIENT_SECRET} y ${N8N_CLIENT_SECRET}).
-    env_file: [./infra/.env, ./ms-gestion/.env, ./n8n/.env]
+    # (realm-licoreria.json usa ${KEYCLOAK_ADMIN_CLIENT_SECRET}, ${N8N_CLIENT_SECRET} y ${VENTAS_CLIENT_SECRET}).
+    env_file: [./infra/.env, ./ms-gestion/.env, ./n8n/.env, ./ms-ventas/.env]
     environment:
       KC_DB: postgres
       KC_HTTP_RELATIVE_PATH: /auth
       KC_HOSTNAME: http://localhost/auth   # emisor fijo del token
       KC_PROXY_HEADERS: xforwarded
-    volumes: ["./infra/keycloak:/opt/keycloak/data/import:ro"]   # realm-licoreria.json
+    volumes:
+      - "./infra/keycloak:/opt/keycloak/data/import:ro"                       # realm-licoreria.json
+      - "./infra/keycloak-tema/licoreria:/opt/keycloak/themes/licoreria:ro"   # tema blanco y lila
 
   nginx:
     image: nginx:stable
@@ -69,6 +71,7 @@ services:
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
       INVENTARIO_URL: http://ms-inventario:8001
       GESTION_URL: http://ms-gestion:3000/graphql
+      KEYCLOAK_TOKEN_URL: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/token
     depends_on: [keycloak]
 
   ms-inventario:
@@ -116,6 +119,7 @@ services:
     build: ./ms-ia
     env_file: ./ms-ia/.env
     ports: ["8002:8002"]
+    volumes: ["./ms-ia/modelos:/app/modelos"]   # modelos entrenados (entrenamiento/entrenar.py)
     environment:
       OLLAMA_URL: http://ollama:11434
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs

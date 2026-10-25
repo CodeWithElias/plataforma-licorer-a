@@ -34,7 +34,7 @@ class ConfirmarReserva
             }
 
             $confirmada = $reserva->confirmar();   // falla si estaba LIBERADA
-            $stocks = $this->stock->buscarVarios($reserva->sucursalId, $reserva->codigos());
+            $stocks = $this->stock->buscarVarios($reserva->codigos());
 
             try {
                 $this->reservas->confirmar($confirmada, $stocks);
@@ -60,10 +60,10 @@ class ConfirmarReserva
             }
 
             $entregado = $this->notificador->notificar(
-                $stock->productoCodigo, $stock->sucursalId, $stock->cantidad - $item->cantidad, $stock->minimo,
+                $stock->productoCodigo, $stock->cantidad - $item->cantidad, $stock->minimo,
             );
             if ($entregado) {
-                $this->stock->marcarAvisoEnviado($stock->productoCodigo, $stock->sucursalId);
+                $this->stock->marcarAvisoEnviado($stock->productoCodigo);
             }
         }
     }

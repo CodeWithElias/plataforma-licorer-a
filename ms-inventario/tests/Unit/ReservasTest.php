@@ -40,7 +40,7 @@ class ReservasTest extends TestCase
 
     private function reservar(array $items, string $id = self::ID)
     {
-        return (new ReservarStock($this->reservas, $this->stock))->ejecutar($id, 'SUC-01', $items);
+        return (new ReservarStock($this->reservas, $this->stock))->ejecutar($id, $items);
     }
 
     private function confirmar(string $id = self::ID)
@@ -103,7 +103,7 @@ class ReservasTest extends TestCase
         $this->reservar([new ItemReserva('VIN-001', 2)], '77aa3b9c-1d2e-4f50-a6b7-c8d9e0f1a2b3');
     }
 
-    public function test_producto_sin_stock_en_la_sucursal(): void
+    public function test_producto_sin_stock_registrado(): void
     {
         $this->expectException(ProductoNoEncontrado::class);
         $this->reservar([new ItemReserva('XXX-999', 1)]);
@@ -181,7 +181,7 @@ class ReservasTest extends TestCase
         $this->reservar([new ItemReserva('CER-001', 1)], '77aa3b9c-1d2e-4f50-a6b7-c8d9e0f1a2b3');
         $this->confirmar('77aa3b9c-1d2e-4f50-a6b7-c8d9e0f1a2b3');   // queda 7, ya se avisó
 
-        $this->assertSame([['productoCodigo' => 'CER-001', 'sucursalId' => 'SUC-01', 'cantidad' => 8, 'minimo' => 12]], $this->notificador->avisos);
+        $this->assertSame([['productoCodigo' => 'CER-001', 'cantidad' => 8, 'minimo' => 12]], $this->notificador->avisos);
         $this->assertTrue($this->stock->de('CER-001')->avisoEnviado);
     }
 

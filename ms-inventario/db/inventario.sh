@@ -23,10 +23,10 @@ existe Productos || aws dynamodb create-table $EP --table-name Productos \
   --key-schema AttributeName=codigo,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST
 
-# Stock: clave compuesta = productoCodigo + sucursalId
+# Stock: clave = productoCodigo (la licorería tiene una sola sucursal)
 existe Stock || aws dynamodb create-table $EP --table-name Stock \
-  --attribute-definitions AttributeName=productoCodigo,AttributeType=S AttributeName=sucursalId,AttributeType=S \
-  --key-schema AttributeName=productoCodigo,KeyType=HASH AttributeName=sucursalId,KeyType=RANGE \
+  --attribute-definitions AttributeName=productoCodigo,AttributeType=S \
+  --key-schema AttributeName=productoCodigo,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST
 
 # Reservas: clave = reservaId (igual al operationId de la venta)
@@ -43,7 +43,7 @@ aws dynamodb put-item $EP --table-name Productos --condition-expression "attribu
   "precio": {"N": "12.00"}, "etiquetaModelo": {"S": "pacena_620"}}'   2>/dev/null || true
 
 aws dynamodb put-item $EP --table-name Stock --condition-expression "attribute_not_exists(productoCodigo)" --item '{
-  "productoCodigo": {"S": "CER-001"}, "sucursalId": {"S": "SUC-01"},
+  "productoCodigo": {"S": "CER-001"},
   "cantidad": {"N": "48"}, "reservado": {"N": "0"}, "minimo": {"N": "12"}, "version": {"N": "1"}}'   2>/dev/null || echo "Producto de ejemplo ya existía"
 
 echo "Tablas de DynamoDB listas:"

@@ -1,5 +1,10 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 .env
+# Modelos entrenados y fotos del dataset: no van a git (pesan mucho)
 modelos/
+dataset/*
+!dataset/README.md
+dataset-prueba/

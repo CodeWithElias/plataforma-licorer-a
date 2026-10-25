@@ -115,10 +115,6 @@ paths:
           required: true
           description: Exclusivo
           schema: { type: string, format: date-time, example: "2026-10-08T00:00:00-04:00" }
-        - name: sucursal
-          in: query
-          required: false
-          schema: { type: string, example: SUC-01 }
       responses:
         "200":
           description: Ventas del periodo
@@ -246,9 +242,8 @@ components:
 
     VentaRequest:
       type: object
-      required: [sucursalId, items, pago]
+      required: [items, pago]
       properties:
-        sucursalId: { type: string, example: SUC-01 }
         items:
           type: array
           minItems: 1
@@ -294,7 +289,6 @@ components:
       properties:
         numero: { type: integer, format: int64 }
         fecha: { type: string, format: date-time }
-        sucursalId: { type: string }
         total: { type: number, format: double }
         items:
           type: array
@@ -302,12 +296,11 @@ components:
 
     VentaDetalle:
       type: object
-      required: [id, numero, operationId, sucursalId, cajeroId, fecha, total, estado, origen, items, pago, saga]
+      required: [id, numero, operationId, cajeroId, fecha, total, estado, origen, items, pago, saga]
       properties:
         id: { type: string, format: uuid }
         numero: { type: integer, format: int64 }
         operationId: { type: string, format: uuid }
-        sucursalId: { type: string }
         cajeroId: { type: string, description: "sub del token de Keycloak" }
         fecha: { type: string, format: date-time }
         total: { type: number, format: double }

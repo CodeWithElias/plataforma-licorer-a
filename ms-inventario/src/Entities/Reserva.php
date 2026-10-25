@@ -17,7 +17,6 @@ final readonly class Reserva
      */
     public function __construct(
         public string $reservaId,
-        public string $sucursalId,
         public array $items,
         public EstadoReserva $estado,
         public string $creadoEn,
@@ -26,11 +25,8 @@ final readonly class Reserva
     /**
      * @param list<ItemReserva> $items Si un producto se repite, se suman sus cantidades.
      */
-    public static function nueva(string $reservaId, string $sucursalId, array $items, string $ahora): self
+    public static function nueva(string $reservaId, array $items, string $ahora): self
     {
-        if (trim($sucursalId) === '') {
-            throw new DatosInvalidos('sucursalId es obligatorio');
-        }
         if ($items === []) {
             throw new DatosInvalidos('items debe tener al menos un elemento');
         }
@@ -44,7 +40,7 @@ final readonly class Reserva
             $unidos[] = new ItemReserva((string) $codigo, $cantidad);
         }
 
-        return new self($reservaId, $sucursalId, $unidos, EstadoReserva::Activa, $ahora);
+        return new self($reservaId, $unidos, EstadoReserva::Activa, $ahora);
     }
 
     public function confirmar(): self
@@ -73,6 +69,6 @@ final readonly class Reserva
 
     private function conEstado(EstadoReserva $estado): self
     {
-        return new self($this->reservaId, $this->sucursalId, $this->items, $estado, $this->creadoEn);
+        return new self($this->reservaId, $this->items, $estado, $this->creadoEn);
     }
 }

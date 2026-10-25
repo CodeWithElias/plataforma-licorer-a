@@ -11,16 +11,14 @@ function crearColeccion(nombre, opciones) {
   }
 }
 
-crearColeccion('sucursales', { validator: { $jsonSchema: {
-  bsonType: 'object', required: ['codigo', 'nombre'],
-  properties: { codigo: { bsonType: 'string' }, nombre: { bsonType: 'string' }, direccion: { bsonType: 'string' } } } } });
-db.sucursales.createIndex({ codigo: 1 }, { unique: true });
+// La licorería tiene una sola sucursal: no hay colección de sucursales (se borra si quedó de una versión anterior)
+if (db.getCollectionNames().includes('sucursales')) db.sucursales.drop();
 
 crearColeccion('empleados', { validator: { $jsonSchema: {
-  bsonType: 'object', required: ['keycloakId', 'ci', 'nombre', 'cargo', 'sucursalId', 'activo'],
+  bsonType: 'object', required: ['keycloakId', 'ci', 'nombre', 'cargo', 'activo'],
   properties: {
     keycloakId: { bsonType: 'string' }, ci: { bsonType: 'string' }, nombre: { bsonType: 'string' },
-    cargo: { enum: ['ADMIN', 'GERENTE', 'CAJERO', 'ALMACEN'] }, sucursalId: { bsonType: 'string' }, activo: { bsonType: 'bool' } } } } });
+    cargo: { enum: ['ADMIN', 'GERENTE', 'CAJERO', 'ALMACEN'] }, activo: { bsonType: 'bool' } } } } });
 db.empleados.createIndex({ keycloakId: 1 }, { unique: true });
 db.empleados.createIndex({ ci: 1 }, { unique: true });
 
@@ -46,9 +44,9 @@ db.ordenes_compra.createIndex({ numero: 1 }, { unique: true });
 db.ordenes_compra.createIndex({ proveedorId: 1, fecha: -1 });
 
 crearColeccion('ingresos', { validator: { $jsonSchema: {
-  bsonType: 'object', required: ['operationId', 'ventaId', 'sucursalId', 'monto', 'fecha', 'estado'],
+  bsonType: 'object', required: ['operationId', 'ventaId', 'monto', 'fecha', 'estado'],
   properties: {
-    operationId: { bsonType: 'string' }, ventaId: { bsonType: 'string' }, sucursalId: { bsonType: 'string' },
+    operationId: { bsonType: 'string' }, ventaId: { bsonType: 'string' },
     monto: { bsonType: 'decimal' }, fecha: { bsonType: 'date' }, estado: { enum: ['ACTIVO', 'ANULADO'] } } } } });
 db.ingresos.createIndex({ operationId: 1 }, { unique: true });   // idempotencia del paso de la Saga
 db.ingresos.createIndex({ fecha: -1 });

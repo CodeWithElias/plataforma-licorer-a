@@ -33,4 +33,17 @@ npm run dev        # http://localhost:4202/mfe-pos/
 
 ## Estado
 
-Esqueleto: la pantalla `Pos` es un marcador. Pendiente: catálogo, carrito, Dexie (IndexedDB) y cola offline.
+| Función | Estado |
+|---|---|
+| Catálogo (ms-inventario) con búsqueda y filtro por tipo | ✅ Semana 2 |
+| Carrito, total y método de pago | ✅ Semana 2 |
+| **Cobrar** → `POST /api/ventas/ventas` con `Idempotency-Key` nuevo (Saga) y mensaje según el resultado (venta completada, sin stock, venta revertida) | ✅ Semana 2 (CU02) |
+| Sesión: dentro del Shell usa `window.licoreriaAuth`; como PWA sola inicia sesión con Keycloak (`src/auth.ts`) | ✅ Semana 2 |
+| Dexie (IndexedDB), cola offline y `POST /ventas/sync` | Semana 3 (CU03) |
+| Reconocimiento con TF.js desde la webcam | Semana 3 (CU04) |
+
+## Pruebas
+
+```sh
+npm test      # total del carrito y mensajes de error de la Saga
+```

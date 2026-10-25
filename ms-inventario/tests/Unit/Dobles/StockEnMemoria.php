@@ -12,51 +12,44 @@ use Inventario\UseCases\Ports\StockRepository;
  */
 class StockEnMemoria implements StockRepository
 {
-    /** @var array<string, Stock> por "codigo|sucursal" */
+    /** @var array<string, Stock> por código de producto */
     public array $stock = [];
 
-    public function poner(string $codigo, int $cantidad, int $minimo = 0, int $reservado = 0, string $sucursal = 'SUC-01'): void
+    public function poner(string $codigo, int $cantidad, int $minimo = 0, int $reservado = 0): void
     {
-        $this->stock["{$codigo}|{$sucursal}"] = new Stock($codigo, $sucursal, $cantidad, $reservado, $minimo, 1);
+        $this->stock[$codigo] = new Stock($codigo, $cantidad, $reservado, $minimo, 1);
     }
 
-    public function de(string $codigo, string $sucursal = 'SUC-01'): Stock
+    public function de(string $codigo): Stock
     {
-        return $this->stock["{$codigo}|{$sucursal}"];
+        return $this->stock[$codigo];
     }
 
-    public function porSucursal(string $sucursalId): array
+    public function todos(): array
     {
-        return array_values(array_filter($this->stock, fn (Stock $s) => $s->sucursalId === $sucursalId));
+        return array_values($this->stock);
     }
 
-    public function buscarVarios(string $sucursalId, array $codigos): array
+    public function buscarVarios(array $codigos): array
     {
-        $r = [];
-        foreach ($codigos as $c) {
-            if (isset($this->stock["{$c}|{$sucursalId}"])) {
-                $r[$c] = $this->stock["{$c}|{$sucursalId}"];
-            }
-        }
-
-        return $r;
+        return array_intersect_key($this->stock, array_flip($codigos));
     }
 
-    public function marcarAvisoEnviado(string $productoCodigo, string $sucursalId): void
+    public function marcarAvisoEnviado(string $productoCodigo): void
     {
-        $s = $this->de($productoCodigo, $sucursalId);
-        $this->stock["{$productoCodigo}|{$sucursalId}"] = new Stock($s->productoCodigo, $s->sucursalId, $s->cantidad, $s->reservado, $s->minimo, $s->version, true);
+        $s = $this->de($productoCodigo);
+        $this->stock[$productoCodigo] = new Stock($s->productoCodigo, $s->cantidad, $s->reservado, $s->minimo, $s->version, true);
     }
 
     /** Aplica un cambio exigiendo que la version no haya cambiado (bloqueo optimista). */
     public function aplicar(Stock $leido, int $deltaCantidad, int $deltaReservado): void
     {
-        $actual = $this->de($leido->productoCodigo, $leido->sucursalId);
+        $actual = $this->de($leido->productoCodigo);
         if ($actual->version !== $leido->version) {
             throw new ConflictoConcurrencia;
         }
-        $this->stock["{$leido->productoCodigo}|{$leido->sucursalId}"] = new Stock(
-            $actual->productoCodigo, $actual->sucursalId, $actual->cantidad + $deltaCantidad,
+        $this->stock[$leido->productoCodigo] = new Stock(
+            $actual->productoCodigo, $actual->cantidad + $deltaCantidad,
             $actual->reservado + $deltaReservado, $actual->minimo, $actual->version + 1, $actual->avisoEnviado,
         );
     }

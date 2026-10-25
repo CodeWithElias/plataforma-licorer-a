@@ -23,7 +23,6 @@ class ReservaController
 
         $resultado = $casoDeUso->ejecutar(
             $this->texto($request->input('reservaId'), 'reservaId'),
-            $this->texto($request->input('sucursalId'), 'sucursalId'),
             array_map(fn ($i) => new ItemReserva(
                 $this->texto($i['productoCodigo'] ?? null, 'productoCodigo'),
                 $this->entero($i['cantidad'] ?? null, 'cantidad'),

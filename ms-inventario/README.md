@@ -1,6 +1,6 @@
 # ms-inventario
 
-Microservicio de inventario de la Plataforma Licorería: catálogo de productos, stock por sucursal y reservas de stock para la Saga de ventas, con **escrituras condicionales** (idempotencia) y **bloqueo optimista** en DynamoDB. Avisa a n8n cuando el stock baja del mínimo.
+Microservicio de inventario de la Plataforma Licorería: catálogo de productos, stock y reservas de stock para la Saga de ventas, con **escrituras condicionales** (idempotencia) y **bloqueo optimista** en DynamoDB. Avisa a n8n cuando el stock baja del mínimo.
 
 | | |
 |---|---|
@@ -57,7 +57,7 @@ Todos implementados según `docs/openapi.yaml` (por Nginx: `http://localhost/api
 |---|---|---|
 | `GET /productos?tipo=` | cualquiera con token | Catálogo (20 productos) |
 | `GET /productos/{codigo}` | cualquiera con token | Un producto |
-| `GET /stock?sucursal=SUC-01` | GERENTE, ALMACEN | Stock con `disponible = cantidad − reservado` |
+| `GET /stock` | GERENTE, ALMACEN | Stock con `disponible = cantidad − reservado` |
 | `POST /stock/reservas` | CAJERO | Reserva (idempotente por `reservaId`, transacción + bloqueo optimista) |
 | `GET /stock/reservas/{id}` | CAJERO, GERENTE | Consulta una reserva |
 | `POST /stock/reservas/{id}/confirmar` | CAJERO | Descuenta el stock; avisa a n8n si queda bajo el mínimo |
@@ -65,7 +65,7 @@ Todos implementados según `docs/openapi.yaml` (por Nginx: `http://localhost/api
 
 ## Catálogo de ejemplo
 
-Al arrancar, el contenedor ejecuta `php artisan inventario:seed`, que inserta los 20 productos y su stock en `SUC-01` y `SUC-02` si faltan (no pisa lo existente). Para volver al stock inicial:
+Al arrancar, el contenedor ejecuta `php artisan inventario:seed`, que inserta los 20 productos y su stock si faltan (no pisa lo existente). Para volver al stock inicial:
 
 ```sh
 docker compose exec ms-inventario php artisan inventario:seed --forzar

@@ -31,7 +31,7 @@ class ReservarStock
     /**
      * @param  list<ItemReserva>  $items
      */
-    public function ejecutar(string $reservaId, string $sucursalId, array $items): ResultadoReserva
+    public function ejecutar(string $reservaId, array $items): ResultadoReserva
     {
         if (! preg_match(self::UUID, $reservaId)) {
             throw new DatosInvalidos('reservaId debe ser un UUID');
@@ -41,15 +41,15 @@ class ReservarStock
             return new ResultadoReserva($existente, creada: false);
         }
 
-        $reserva = Reserva::nueva($reservaId, $sucursalId, $items, (new DateTimeImmutable)->format(DATE_ATOM));
+        $reserva = Reserva::nueva($reservaId, $items, (new DateTimeImmutable)->format(DATE_ATOM));
 
         for ($intento = 1; $intento <= self::MAX_INTENTOS; $intento++) {
-            $stocks = $this->stock->buscarVarios($reserva->sucursalId, $reserva->codigos());
+            $stocks = $this->stock->buscarVarios($reserva->codigos());
 
             $faltantes = [];
             foreach ($reserva->items as $item) {
                 $stock = $stocks[$item->productoCodigo]
-                    ?? throw ProductoNoEncontrado::enSucursal($item->productoCodigo, $reserva->sucursalId);
+                    ?? throw ProductoNoEncontrado::sinStock($item->productoCodigo);
                 if (! $stock->alcanzaPara($item->cantidad)) {
                     $faltantes[] = ['productoCodigo' => $item->productoCodigo, 'pedido' => $item->cantidad, 'disponible' => $stock->disponible()];
                 }

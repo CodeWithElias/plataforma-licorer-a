@@ -1,0 +1,148 @@
+/* Plataforma Licorería – identidad blanco y lila (la misma paleta del Shell y los micro frontends) */
+:root {
+  --lila-50: #f7f4ff;
+  --lila-100: #efe9ff;
+  --lila-200: #ddd2fe;
+  --lila-300: #c4b0fb;
+  --lila-500: #8b5cf6;
+  --lila-600: #7c3aed;
+  --lila-700: #6a2fd0;
+  --tinta: #241a38;
+  --gris: #6c6880;
+  --borde: #e7e3f1;
+
+  --keycloak-card-top-color: transparent;
+  --pf-v5-global--primary-color--100: var(--lila-600);
+  --pf-v5-global--primary-color--200: var(--lila-700);
+  --pf-v5-global--link--Color: var(--lila-600);
+  --pf-v5-global--link--Color--hover: var(--lila-700);
+  --pf-v5-global--active-color--100: var(--lila-600);
+  --pf-v5-global--FontFamily--text: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --pf-v5-global--FontFamily--heading: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
+
+/* Fondo: blanco con un degradado lila suave */
+.login-pf body {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(139, 92, 246, 0.20), transparent 42%),
+    radial-gradient(circle at 88% 82%, rgba(196, 176, 251, 0.35), transparent 45%),
+    linear-gradient(160deg, #ffffff 0%, var(--lila-50) 55%, var(--lila-100) 100%);
+  background-attachment: fixed;
+  color: var(--tinta);
+}
+
+.pf-v5-c-login__container {
+  grid-template-columns: minmax(auto, 27rem);
+}
+
+/* Marca */
+#kc-header {
+  margin-bottom: 1.75rem;
+}
+
+#kc-header-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--tinta);
+  text-transform: none;
+}
+
+#kc-header-wrapper::before {
+  content: "";
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 22h8M12 15v7M5 3h14l-1.5 7a5.5 5.5 0 0 1-11 0z'/%3E%3C/svg%3E") center / 26px no-repeat,
+    linear-gradient(135deg, var(--lila-500), var(--lila-700));
+  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.35);
+}
+
+/* Tarjeta */
+.pf-v5-c-login__main {
+  background: #ffffff;
+  border: 1px solid var(--borde);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px -18px rgba(76, 29, 149, 0.28), 0 2px 6px rgba(76, 29, 149, 0.06);
+  overflow: hidden;
+}
+
+.pf-v5-c-login__main-header {
+  border-top: 0;
+  padding-top: 2.25rem;
+}
+
+#kc-page-title {
+  font-size: 1.4rem;
+  font-weight: 650;
+  color: var(--tinta);
+}
+
+.pf-v5-c-form__label-text {
+  color: var(--tinta);
+  font-weight: 600;
+}
+
+/* Campos */
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--BorderRadius: 10px;
+  border-radius: 10px;
+  background: #fbfaff;
+}
+
+.pf-v5-c-form-control::after {
+  border-radius: 10px;
+}
+
+.pf-v5-c-form-control:focus-within {
+  --pf-v5-c-form-control--after--BorderBottomColor: var(--lila-600);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
+}
+
+/* Botón principal */
+.pf-v5-c-button.pf-m-primary {
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--lila-600);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--lila-700);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--lila-700);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--lila-700);
+  background: linear-gradient(135deg, var(--lila-500), var(--lila-700));
+  border-radius: 10px;
+  padding-block: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 22px -8px rgba(124, 58, 237, 0.55);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px -8px rgba(124, 58, 237, 0.6);
+}
+
+.pf-v5-c-check__input {
+  accent-color: var(--lila-600);
+}
+
+/* Mensajes de error / aviso */
+.pf-v5-c-alert {
+  border-radius: 10px;
+}
+
+/* Pie */
+.pf-v5-c-login__main-footer-band {
+  background: var(--lila-50);
+  border-top: 1px solid var(--borde);
+}
+
+/* PatternFly pinta el encabezado en blanco: se fuerza el color de la marca. */
+.pf-v5-c-login__main-header #kc-header-wrapper,
+.pf-v5-c-login__header #kc-header-wrapper,
+#kc-header #kc-header-wrapper,
+#kc-header-wrapper * {
+  color: var(--tinta) !important;
+}

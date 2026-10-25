@@ -11,7 +11,6 @@ class StockPresenter
     {
         return array_map(fn (Stock $s) => [
             'productoCodigo' => $s->productoCodigo,
-            'sucursalId' => $s->sucursalId,
             'cantidad' => $s->cantidad,
             'reservado' => $s->reservado,
             'disponible' => $s->disponible(),

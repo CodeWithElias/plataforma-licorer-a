@@ -106,7 +106,7 @@ class DynamoDbReservaRepository implements ReservaRepository
         return [
             'Update' => [
                 'TableName' => DynamoDbStockRepository::TABLA,
-                'Key' => DynamoDbStockRepository::clave($stock->productoCodigo, $stock->sucursalId),
+                'Key' => DynamoDbStockRepository::clave($stock->productoCodigo),
                 'UpdateExpression' => $actualizacion.', version = version + :uno',
                 'ConditionExpression' => 'version = :v',   // bloqueo optimista
                 'ExpressionAttributeValues' => [
@@ -144,7 +144,6 @@ class DynamoDbReservaRepository implements ReservaRepository
     {
         return [
             'reservaId' => $r->reservaId,
-            'sucursalId' => $r->sucursalId,
             'items' => array_map(fn (ItemReserva $i) => ['productoCodigo' => $i->productoCodigo, 'cantidad' => $i->cantidad], $r->items),
             'estado' => $r->estado->value,
             'creadoEn' => $r->creadoEn,
@@ -155,7 +154,6 @@ class DynamoDbReservaRepository implements ReservaRepository
     {
         return new Reserva(
             reservaId: $i['reservaId'],
-            sucursalId: $i['sucursalId'],
             items: array_map(fn (array $x) => new ItemReserva($x['productoCodigo'], (int) $x['cantidad']), $i['items']),
             estado: EstadoReserva::from($i['estado']),
             creadoEn: $i['creadoEn'],

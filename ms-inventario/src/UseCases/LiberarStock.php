@@ -30,7 +30,7 @@ class LiberarStock
             }
 
             $liberada = $reserva->liberar();   // falla si estaba CONFIRMADA
-            $stocks = $this->stock->buscarVarios($reserva->sucursalId, $reserva->codigos());
+            $stocks = $this->stock->buscarVarios($reserva->codigos());
 
             try {
                 $this->reservas->liberar($liberada, $stocks);

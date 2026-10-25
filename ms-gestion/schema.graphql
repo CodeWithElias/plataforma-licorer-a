@@ -2,8 +2,11 @@
 # Publicado por Nginx en /graphql. Todas las operaciones exigen Authorization: Bearer <token>.
 
 type Query {
-  "Comprobación rápida del servicio"
+  "Comprobación rápida del servicio (no exige token)"
   salud: String!
+
+  "Usuario del token: id, nombre de usuario y roles de Keycloak"
+  yo: Usuario!
 
   proveedores(activo: Boolean): [Proveedor!]!
   proveedor(id: ID!): Proveedor
@@ -25,6 +28,13 @@ type Mutation {
 
   # CU07 – Exportar reporte
   exportarReporte(id: ID!, formato: FormatoExportacion!): ArchivoReporte!
+}
+
+# ---------- Seguridad ----------
+type Usuario {
+  id: ID!
+  usuario: String!
+  roles: [String!]!
 }
 
 # ---------- Proveedores ----------
@@ -62,7 +72,6 @@ type Ingreso {
   id: ID!
   operationId: String!
   ventaId: String!
-  sucursalId: String!
   monto: Float!
   fecha: String!
   estado: EstadoIngreso!
@@ -71,7 +80,6 @@ type Ingreso {
 input IngresoInput {
   operationId: String!
   ventaId: String!
-  sucursalId: String!
   monto: Float!
 }
 

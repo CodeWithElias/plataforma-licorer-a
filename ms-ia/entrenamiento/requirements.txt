@@ -1,0 +1,5 @@
+# Solo para entrenar (no va en la imagen de ms-ia)
+tensorflow-cpu==2.21.0
+pillow==13.0.0
+# Opcional, para exportar a TF.js (lo usa el MFE POS en la semana 3):
+# tensorflowjs

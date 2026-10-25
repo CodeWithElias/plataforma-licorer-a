@@ -36,8 +36,22 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.GET, "/ventas").hasRole("GERENTE")                 // por periodo
             .requestMatchers(HttpMethod.GET, "/ventas/*").hasAnyRole("CAJERO", "GERENTE")  // detalle
             .anyRequest().authenticated())
-        .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(rolesDeKeycloak())));
+        .oauth2ResourceServer(o -> o
+            .jwt(j -> j.jwtAuthenticationConverter(rolesDeKeycloak()))
+            .authenticationEntryPoint((req, res, e) -> error(res, 401, "NO_AUTENTICADO", "Token ausente o inválido"))
+            .accessDeniedHandler((req, res, e) -> error(res, 403, "SIN_PERMISO", "El token no tiene el rol requerido")))
+        .exceptionHandling(x -> x
+            .authenticationEntryPoint((req, res, e) -> error(res, 401, "NO_AUTENTICADO", "Token ausente o inválido"))
+            .accessDeniedHandler((req, res, e) -> error(res, 403, "SIN_PERMISO", "El token no tiene el rol requerido")));
     return http.build();
+  }
+
+  /** Errores de seguridad con el mismo formato que el resto de la API: { codigo, mensaje }. */
+  private static void error(jakarta.servlet.http.HttpServletResponse res, int estado, String codigo, String mensaje)
+      throws java.io.IOException {
+    res.setStatus(estado);
+    res.setContentType("application/json;charset=UTF-8");
+    res.getWriter().write("{\"codigo\":\"" + codigo + "\",\"mensaje\":\"" + mensaje + "\"}");
   }
 
   @Bean

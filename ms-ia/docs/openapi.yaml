@@ -1,9 +1,12 @@
-# Contrato de ms-ia (borrador inicial; lo completa y versiona Dev 3).
-# Publicado por Nginx en /api/ia. Todo excepto /health exige Authorization: Bearer <token>.
+# Contrato de ms-ia. Publicado por Nginx en /api/ia. Todo excepto /health exige Authorization: Bearer <token>.
+# Implementado (semana 2): /health, /yo, /imagen/clasificar, /modelos/latest, /modelos/{version}/{archivo}.
+# Semana 3: /video/analizar, /reportes, /agentes/reabastecimiento.
+# Errores: { codigo, mensaje } — NO_AUTENTICADO (401), SIN_PERMISO (403), DATOS_INVALIDOS (400),
+# MODELO_NO_DISPONIBLE (503, todavía no hay modelo entrenado), ERROR_INTERNO (502, ms-inventario no respondió).
 openapi: 3.0.3
 info:
   title: ms-ia
-  version: 0.1.0
+  version: 0.2.0
   description: Clasificación de productos (TensorFlow), agentes LangGraph y servidor MCP.
 servers:
   - url: http://localhost/api/ia
@@ -21,22 +24,43 @@ paths:
       security: []
       responses:
         "200": { description: OK }
+  /yo:
+    get:
+      summary: Usuario del token (id, usuario y roles de Keycloak)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  usuario: { type: string }
+                  roles: { type: array, items: { type: string } }
+        "401": { description: Falta el token o no es válido }
   /imagen/clasificar:
     post:
-      summary: Clasifica una foto de producto (CU04)
+      summary: Clasifica una foto de producto (CU04). Roles CAJERO, ALMACEN o GERENTE
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
               type: object
+              required: [imagen]
               properties:
-                imagen: { type: string, format: binary }
+                imagen: { type: string, format: binary, description: JPG o PNG, hasta 8 MB }
       responses:
         "200":
           description: Producto reconocido
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Prediccion" }
+        "400": { description: Imagen vacía, ilegible o mayor a 8 MB (DATOS_INVALIDOS) }
+        "401": { description: NO_AUTENTICADO }
+        "403": { description: SIN_PERMISO }
+        "503": { description: Todavía no hay modelo entrenado (MODELO_NO_DISPONIBLE) }
   /video/analizar:
     post:
       summary: Extrae 1 frame por segundo y clasifica cada uno (CU04)
@@ -57,7 +81,7 @@ paths:
                 items: { $ref: "#/components/schemas/Prediccion" }
   /modelos/latest:
     get:
-      summary: Versión y URL del último modelo (TFLite / TF.js)
+      summary: Versión vigente del clasificador y URLs para descargarlo (la app y el POS lo usan offline)
       responses:
         "200":
           description: OK
@@ -66,9 +90,22 @@ paths:
               schema:
                 type: object
                 properties:
-                  version: { type: string }
-                  tflite: { type: string }
-                  tfjs: { type: string }
+                  version: { type: string, example: "20261025-060236" }
+                  entrenadoEn: { type: string, format: date-time }
+                  etiquetas: { type: array, items: { type: string }, example: [absolut_750, casareal_negra, huari_620, jw_red, pacena_620] }
+                  precisionValidacion: { type: number, example: 0.93 }
+                  tflite: { type: string, example: "http://localhost/api/ia/modelos/20261025-060236/modelo.tflite" }
+                  tfjs: { type: string, nullable: true, description: "null si el modelo no se exportó a TF.js" }
+        "503": { description: Todavía no hay modelo entrenado (MODELO_NO_DISPONIBLE) }
+  /modelos/{version}/{archivo}:
+    get:
+      summary: Descarga un archivo del modelo (modelo.tflite, etiquetas.txt, tfjs/model.json, …)
+      parameters:
+        - { name: version, in: path, required: true, schema: { type: string } }
+        - { name: archivo, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: El archivo }
+        "404": { description: No existe (NO_ENCONTRADO) }
   /reportes:
     post:
       summary: Agente de reportes por lenguaje natural (CU07)
@@ -102,7 +139,6 @@ paths:
               type: object
               properties:
                 productoCodigo: { type: string }
-                sucursalId: { type: string }
                 cantidad: { type: integer }
                 minimo: { type: integer }
       responses:
@@ -126,6 +162,8 @@ components:
     Prediccion:
       type: object
       properties:
-        productoCodigo: { type: string }
-        etiqueta: { type: string }
-        confianza: { type: number, format: float }
+        productoCodigo: { type: string, nullable: true, example: CER-001, description: "null si la etiqueta no está en el catálogo" }
+        nombre: { type: string, nullable: true, example: "Cerveza Paceña 620 ml" }
+        etiqueta: { type: string, example: pacena_620, description: etiquetaModelo del catálogo }
+        confianza: { type: number, format: float, example: 0.9744 }
+        modelo: { type: string, example: "20261025-060236", description: versión del modelo que clasificó }

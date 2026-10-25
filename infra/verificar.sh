@@ -45,7 +45,7 @@ for t in Productos Reservas Stock; do
 done
 # MongoDB de ms-gestion (Atlas): su /health lista las colecciones
 col=$(docker compose exec -T ms-gestion wget -qO- http://127.0.0.1:3000/health 2>/dev/null)
-for c in empleados ingresos ordenes_compra proveedores reportes sucursales; do
+for c in empleados ingresos ordenes_compra proveedores reportes; do
   case "$col" in *"\"$c\""*) pasa "MongoDB (Atlas): colección $c" ;; *) falla "MongoDB (Atlas): falta la colección $c (docker compose run --rm mongo-init)" ;; esac
 done
 
@@ -73,8 +73,8 @@ for r in /api/ventas/health /api/inventario/health /health@ms-gestion /api/ia/he
 done
 n=$(curl -s -H "Authorization: Bearer $SRV" http://localhost/api/inventario/productos | grep -o '"codigo"' | wc -l)
 [ "$n" -ge 20 ] && pasa "GET /api/inventario/productos con token: $n productos" || falla "GET /api/inventario/productos devolvió $n productos (se esperaban 20; docker compose logs ms-inventario)"
-n=$(curl -s -H "Authorization: Bearer $SRV" "http://localhost/api/inventario/stock?sucursal=SUC-01" | grep -o '"productoCodigo"' | wc -l)
-[ "$n" -ge 20 ] && pasa "GET /api/inventario/stock?sucursal=SUC-01: $n registros" || falla "GET /api/inventario/stock devolvió $n registros"
+n=$(curl -s -H "Authorization: Bearer $SRV" "http://localhost/api/inventario/stock" | grep -o '"productoCodigo"' | wc -l)
+[ "$n" -ge 20 ] && pasa "GET /api/inventario/stock: $n registros" || falla "GET /api/inventario/stock devolvió $n registros"
 code=$(http http://localhost/api/inventario/productos)
 [ "$code" = 401 ] && pasa "GET /api/inventario/productos sin token responde 401" || falla "GET /api/inventario/productos sin token respondió $code (se esperaba 401)"
 code=$(http -X POST http://localhost/api/ventas/ventas)
@@ -83,6 +83,26 @@ code=$(http http://localhost/api/ventas/swagger-ui/index.html)
 [ "$code" = 200 ] && pasa "Swagger de ms-ventas" || falla "Swagger de ms-ventas respondió $code"
 code=$(http http://localhost/api/ia/docs)
 [ "$code" = 200 ] && pasa "Swagger de ms-ia" || falla "Swagger de ms-ia respondió $code"
+
+echo "4b. Semana 2 (con el token de la cuenta de servicio n8n, rol GERENTE)"
+DESDE=$(date -u -d '-30 days' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-01T00:00:00Z)
+HASTA=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT23:59:59Z)
+code=$(http -H "Authorization: Bearer $SRV" "http://localhost/api/ventas/ventas?desde=$DESDE&hasta=$HASTA")
+[ "$code" = 200 ] && pasa "GET /api/ventas/ventas?desde&hasta (ventas por periodo)" || falla "ventas por periodo respondió $code"
+curl -s -X POST http://localhost/graphql -H "Authorization: Bearer $SRV" -H 'Content-Type: application/json' -d '{"query":"{ yo { usuario } }"}' | grep -q '"usuario":"service-account-n8n"' \
+  && pasa "GraphQL yo valida el token de Keycloak (ms-gestion)" || falla "GraphQL yo no validó el token"
+curl -s -X POST http://localhost/graphql -H "Authorization: Bearer $SRV" -H 'Content-Type: application/json' -d '{"query":"{ proveedores { id } }"}' | grep -q '"proveedores":\[' \
+  && pasa "GraphQL proveedores (CU05)" || falla "GraphQL proveedores no respondió"
+curl -s -X POST http://localhost/graphql -H 'Content-Type: application/json' -d '{"query":"{ yo { usuario } }"}' | grep -q 'UNAUTHENTICATED' \
+  && pasa "GraphQL yo sin token responde UNAUTHENTICATED" || falla "GraphQL yo sin token no fue rechazado"
+curl -s -H "Authorization: Bearer $SRV" http://localhost/api/ia/yo | grep -q '"usuario":"service-account-n8n"' \
+  && pasa "ms-ia /yo valida el token de Keycloak" || falla "ms-ia /yo no validó el token"
+code=$(http -H "Authorization: Bearer $SRV" http://localhost/api/ia/modelos/latest)
+case "$code" in
+  200) pasa "ms-ia /modelos/latest: hay modelo entrenado" ;;
+  503) pasa "ms-ia /modelos/latest responde 503 MODELO_NO_DISPONIBLE (falta entrenar; ver ms-ia/dataset/README.md)" ;;
+  *) falla "ms-ia /modelos/latest respondió $code" ;;
+esac
 
 echo "5. Frontends"
 curl -s http://localhost/ | grep -q '<app-root' && pasa "Shell en http://localhost/" || falla "el Shell no responde en /"

@@ -32,6 +32,17 @@ npx ng serve       # http://localhost:4200
 
 Con `ng serve` las rutas `/mfe-gestion/...` y `/mfe-pos/...` no existen; para probar la integración usa el compose (o cambia temporalmente el manifest a `http://localhost:4201/remoteEntry.json`).
 
-## Estado
+## Inicio de sesión (CU01)
 
-Esqueleto: menú y carga de los dos remotos. Pendiente: keycloak-angular con PKCE, interceptor del token y menú según rol.
+- `keycloak-angular`: al entrar al Shell se exige login (cliente público `web-shell`, PKCE S256) y el token se renueva solo.
+- Interceptor: agrega `Authorization: Bearer` a las peticiones a `/api/…` y `/graphql`.
+- Menú y rutas por rol (`auth/rol.guard.ts`): CAJERO → POS; GERENTE o ADMIN → Gestión. Si no tiene el rol ve **Acceso denegado**.
+- La sesión se comparte con los remotos:
+  - mfe-gestion (Angular) usa el `HttpClient` del Shell → el interceptor agrega el token.
+  - mfe-pos (React) llama a `window.licoreriaAuth.token()` (`auth/sesion.ts`).
+
+## Pruebas
+
+```sh
+npx ng test --watch=false     # menú según rol
+```

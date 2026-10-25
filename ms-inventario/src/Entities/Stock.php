@@ -3,14 +3,13 @@
 namespace Inventario\Entities;
 
 /**
- * Stock de un producto en una sucursal. Regla: disponible = cantidad − reservado.
+ * Stock de un producto en la licorería (una sola sucursal). Regla: disponible = cantidad − reservado.
  * La version sirve de bloqueo optimista: toda escritura exige que no haya cambiado desde que se leyó.
  */
 final readonly class Stock
 {
     public function __construct(
         public string $productoCodigo,
-        public string $sucursalId,
         public int $cantidad,
         public int $reservado,
         public int $minimo,

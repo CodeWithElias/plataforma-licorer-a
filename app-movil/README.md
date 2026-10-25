@@ -23,7 +23,7 @@ flutter run --dart-define-from-file=.env
 
 También se puede pasar una sola variable: `flutter run --dart-define=API_URL=http://192.168.1.10`.
 
-> Desde el celular, Keycloak emite tokens con `iss = http://localhost/auth/...`. Antes de integrar el login hay que decidir con Dev 1 si `KC_HOSTNAME` pasa a ser la IP de la PC.
+> **Pendiente para probar el login en un dispositivo:** Keycloak publica su URL como `http://localhost/auth` (`KC_HOSTNAME`), así que la pantalla de login abierta desde el celular intenta volver a `localhost` y falla. Para la demo hay que poner en `KC_HOSTNAME` la dirección de la PC (p. ej. `http://192.168.1.10/auth`) y la misma en `KEYCLOAK_ISSUER` de cada servicio, y abrir la web también con esa dirección. Se decide en la integración de CU04 (semana 3).
 
 ## Pruebas
 
@@ -33,4 +33,11 @@ flutter test
 
 ## Estado
 
-Esqueleto: pantalla inicial. Pendiente: flutter_appauth, cámara + tflite_flutter, SQLite (sqflite) con el esquema.
+| Función | Estado |
+|---|---|
+| Login con Keycloak (`flutter_appauth`, PKCE; endpoints armados con `API_URL`) | ✅ Semana 2 (`lib/servicios/sesion.dart`) |
+| Inicio con usuario y roles | ✅ Semana 2 |
+| Vista de cámara → foto → `POST /api/ia/imagen/clasificar` | ✅ Semana 2 (`lib/pantallas/camara_page.dart`) |
+| Clasificación en el teléfono con TFLite (`tflite_flutter`) y catálogo/stock en SQLite sin internet | Semana 3 (CU04) |
+
+Configuración nativa ya hecha: esquema de redirección `com.licoreria.app` (Android `manifestPlaceholders`, iOS `CFBundleURLTypes`), permisos de cámara e internet, y tráfico HTTP permitido para la red local de desarrollo.

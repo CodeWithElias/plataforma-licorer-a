@@ -15,18 +15,18 @@ class N8nNotificador implements NotificadorStockBajo
 {
     public function __construct(private ?string $url) {}
 
-    public function notificar(string $productoCodigo, string $sucursalId, int $cantidad, int $minimo): bool
+    public function notificar(string $productoCodigo, int $cantidad, int $minimo): bool
     {
         if (! $this->url) {
             return false;
         }
 
         try {
-            Http::timeout(3)->post($this->url, compact('productoCodigo', 'sucursalId', 'cantidad', 'minimo'))->throw();
+            Http::timeout(3)->post($this->url, compact('productoCodigo', 'cantidad', 'minimo'))->throw();
 
             return true;
         } catch (Throwable $e) {
-            Log::warning("No se pudo avisar stock bajo de {$productoCodigo} en {$sucursalId}: {$e->getMessage()}");
+            Log::warning("No se pudo avisar stock bajo de {$productoCodigo}: {$e->getMessage()}");
 
             return false;
         }
