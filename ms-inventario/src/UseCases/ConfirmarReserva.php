@@ -59,11 +59,15 @@ class ConfirmarReserva
                 continue;
             }
 
+            // Se marca antes de avisar: si dos ventas confirman a la vez, solo una gana la escritura condicional
+            if (! $this->stock->marcarAvisoEnviado($stock->productoCodigo)) {
+                continue;
+            }
             $entregado = $this->notificador->notificar(
                 $stock->productoCodigo, $stock->cantidad - $item->cantidad, $stock->minimo,
             );
-            if ($entregado) {
-                $this->stock->marcarAvisoEnviado($stock->productoCodigo);
+            if (! $entregado) {
+                $this->stock->quitarAviso($stock->productoCodigo);   // se reintenta en la siguiente confirmación
             }
         }
     }

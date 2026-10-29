@@ -16,6 +16,7 @@ Route::middleware('jwt')->group(function () {
 });
 
 Route::get('/stock', [StockController::class, 'consultar'])->middleware('jwt:GERENTE,ALMACEN');
+Route::post('/stock/{codigo}/reposiciones', [StockController::class, 'reponer'])->middleware('jwt:ALMACEN,GERENTE');
 
 // Reservas: las llama ms-ventas reenviando el token del cajero
 Route::post('/stock/reservas', [ReservaController::class, 'reservar'])->middleware('jwt:CAJERO');

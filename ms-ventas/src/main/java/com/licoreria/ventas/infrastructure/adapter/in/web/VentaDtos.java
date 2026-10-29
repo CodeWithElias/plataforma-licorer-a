@@ -1,5 +1,7 @@
 package com.licoreria.ventas.infrastructure.adapter.in.web;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.licoreria.ventas.application.port.in.SincronizarVentasUseCase;
 import com.licoreria.ventas.domain.model.DetalleVenta;
 import com.licoreria.ventas.domain.model.Venta;
 import com.licoreria.ventas.domain.saga.SagaInstancia;
@@ -19,6 +21,19 @@ final class VentaDtos {
   record PagoRequest(String metodo) {}
 
   record VentaRequest(List<ItemRequest> items, PagoRequest pago) {}
+
+  /** Venta de la cola offline del POS (POST /ventas/sync). */
+  record VentaOfflineRequest(String operationId, List<ItemRequest> items, PagoRequest pago, OffsetDateTime fechaLocal) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  record SyncResultado(String operationId, String resultado, String motivo, String mensaje,
+                       UUID ventaId, Long numero, String estado) {
+    static SyncResultado de(SincronizarVentasUseCase.ResultadoItem r) {
+      Venta v = r.venta();
+      return new SyncResultado(r.operationId(), r.resultado().name(), r.motivo(), r.mensaje(),
+          v == null ? null : v.getId(), v == null ? null : v.getNumero(), v == null ? null : v.getEstado().name());
+    }
+  }
 
   record VentaCreada(UUID id, Long numero, BigDecimal total, String estado) {
     static VentaCreada de(Venta v) {

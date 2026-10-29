@@ -40,7 +40,9 @@ class InventarioServiceProvider extends ServiceProvider
             return new DynamoDbClient($config);
         });
 
-        $this->app->singleton(NotificadorStockBajo::class, fn () => new N8nNotificador(config('inventario.n8n_webhook_stock_bajo')));
+        $this->app->singleton(NotificadorStockBajo::class, fn ($app) => new N8nNotificador(
+            config('inventario.n8n_webhook_stock_bajo'), $app->make(ProductoRepository::class),
+        ));
     }
 
     public function boot(): void

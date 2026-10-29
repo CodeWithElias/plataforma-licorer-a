@@ -9,8 +9,9 @@ cd "$(dirname "$0")/.." || exit 1
 leer() { sed -n "s/^$2=//p" "$1" 2>/dev/null | tr -d '\r'; }
 N8N_CLIENT_SECRET=$(leer n8n/.env N8N_CLIENT_SECRET)
 GESTION_ADMIN_CLIENT_SECRET=$(leer ms-gestion/.env KEYCLOAK_ADMIN_CLIENT_SECRET)
-[ -n "$N8N_CLIENT_SECRET" ] && [ -n "$GESTION_ADMIN_CLIENT_SECRET" ] \
-  || { echo "Faltan los .env de n8n o ms-gestion (sh infra/crear-env.sh)"; exit 1; }
+VENTAS_CLIENT_SECRET=$(leer ms-ventas/.env VENTAS_CLIENT_SECRET)
+[ -n "$N8N_CLIENT_SECRET" ] && [ -n "$GESTION_ADMIN_CLIENT_SECRET" ] && [ -n "$VENTAS_CLIENT_SECRET" ] \
+  || { echo "Faltan los .env de n8n, ms-gestion o ms-ventas (sh infra/crear-env.sh)"; exit 1; }
 
 ok=0; fallas=0
 pasa()  { echo "  [OK]    $1"; ok=$((ok + 1)); }
@@ -103,6 +104,22 @@ case "$code" in
   503) pasa "ms-ia /modelos/latest responde 503 MODELO_NO_DISPONIBLE (falta entrenar; ver ms-ia/dataset/README.md)" ;;
   *) falla "ms-ia /modelos/latest respondió $code" ;;
 esac
+
+echo "4c. Semana 3 (sincronización, reposición y n8n; sin crear ventas ni mover stock)"
+# Cuenta de servicio de ms-ventas: rol CAJERO, el mismo que usa la cola offline del POS
+CAJ=$(curl -s "$KC/protocol/openid-connect/token" -d grant_type=client_credentials -d client_id=ms-ventas -d "client_secret=$VENTAS_CLIENT_SECRET" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+curl -s -X POST http://localhost/api/ventas/ventas/sync -H "Authorization: Bearer $CAJ" -H 'Content-Type: application/json' \
+  -d '[{"operationId":"no-es-uuid","items":[{"productoCodigo":"CER-001","cantidad":1}],"pago":{"metodo":"EFECTIVO"}}]' \
+  | grep -q '"resultado":"ERROR","motivo":"DATOS_INVALIDOS"' \
+  && pasa "POST /ventas/sync responde por ítem (ERROR DATOS_INVALIDOS sin tumbar el lote)" || falla "POST /ventas/sync no respondió el resultado por ítem"
+code=$(http -X POST http://localhost/api/ventas/ventas -H "Authorization: Bearer $CAJ" -H 'Content-Type: application/json' -H 'Idempotency-Key: abc' -d '{}')
+[ "$code" = 400 ] && pasa "Idempotency-Key que no es UUID responde 400" || falla "Idempotency-Key inválido respondió $code"
+code=$(http -X POST http://localhost/api/inventario/stock/XXX-999/reposiciones -H "Authorization: Bearer $SRV" -H 'Content-Type: application/json' -d '{"cantidad":1}')
+[ "$code" = 404 ] && pasa "POST /stock/{codigo}/reposiciones existe (404 para un producto sin stock)" || falla "reposiciones respondió $code"
+activos=$(docker compose exec -T n8n n8n list:workflow --active=true 2>/dev/null)
+for w in cu06Reabastecer1 cu07ReporteDiar1; do
+  echo "$activos" | grep -q "$w" && pasa "n8n: workflow $w activo" || falla "n8n: el workflow $w no está activo (docker compose logs n8n)"
+done
 
 echo "5. Frontends"
 curl -s http://localhost/ | grep -q '<app-root' && pasa "Shell en http://localhost/" || falla "el Shell no responde en /"

@@ -9,7 +9,7 @@ Monorepo de la Plataforma Licorería: 4 microservicios, un Shell con 2 micro fro
 | `infra/` | Dev 1 | Nginx, Keycloak | `nginx:80`, `keycloak` | – | – |
 | `ms-ventas/` | Dev 1 | Spring Boot + PostgreSQL (hexagonal, Saga) | `ms-ventas:8080` | `docs/openapi.yaml` | `db/V1__ventas.sql` (Flyway) |
 | `ms-inventario/` | Dev 1 | Laravel + DynamoDB (Clean) | `ms-inventario:8001` | `docs/openapi.yaml` | `db/inventario.sh` |
-| `n8n/` | Dev 1 | n8n (workflows exportados) | `n8n:5678` | – | – |
+| `n8n/` | Dev 1 | n8n: workflows CU06 y CU07, importados y activados al arrancar (`iniciar.sh`) | `n8n:5678` | `docs/acuerdos-integracion.md` | – |
 | `ms-gestion/` | Dev 2 | NestJS + MongoDB (DDD, GraphQL) | `ms-gestion:3000` | `schema.graphql` | `db/gestion.js` |
 | `web-shell/` | Dev 2 | Angular + Native Federation (host) | `web-shell:4200` | – | – |
 | `mfe-gestion/` | Dev 2 | Angular + Native Federation (remoto) | `mfe-gestion:4201` | – | – |
@@ -47,7 +47,7 @@ Cada proyecto tiene **un solo** `.env` con toda su configuración, y lo usa tant
 | `ms-inventario/.env` | ms-inventario, dynamodb-init | `APP_KEY`, credenciales de DynamoDB, Keycloak, webhook de n8n |
 | `ms-gestion/.env` | ms-gestion, keycloak | Mongo, Keycloak, secreto del cliente `ms-gestion-admin` |
 | `ms-ia/.env` | ms-ia | Ollama, Keycloak, URLs de las tools MCP |
-| `n8n/.env` | n8n, keycloak | Secreto del cliente `n8n` |
+| `n8n/.env` | n8n, keycloak | Secreto del cliente `n8n`, URLs de los servicios, correo del gerente y SMTP de Gmail (contraseña de aplicación) |
 | `infra/.env` | keycloak, keycloak-db | Base de Keycloak y usuario administrador |
 | `mfe-pos/.env` | (al compilar mfe-pos) | Rutas `VITE_*` de las APIs |
 | `app-movil/.env` | (no va en Docker) | `API_URL` para `flutter run --dart-define-from-file=.env` |

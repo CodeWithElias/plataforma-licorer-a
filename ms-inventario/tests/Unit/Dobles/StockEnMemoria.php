@@ -35,10 +35,36 @@ class StockEnMemoria implements StockRepository
         return array_intersect_key($this->stock, array_flip($codigos));
     }
 
-    public function marcarAvisoEnviado(string $productoCodigo): void
+    public function marcarAvisoEnviado(string $productoCodigo): bool
     {
         $s = $this->de($productoCodigo);
+        if ($s->avisoEnviado) {
+            return false;
+        }
         $this->stock[$productoCodigo] = new Stock($s->productoCodigo, $s->cantidad, $s->reservado, $s->minimo, $s->version, true);
+
+        return true;
+    }
+
+    public function quitarAviso(string $productoCodigo): void
+    {
+        $s = $this->de($productoCodigo);
+        $this->stock[$productoCodigo] = new Stock($s->productoCodigo, $s->cantidad, $s->reservado, $s->minimo, $s->version, false);
+    }
+
+    /** Cuántas veces simular que una venta cambió el stock justo antes de reponer */
+    public int $conflictosAlReponer = 0;
+
+    public function reponer(Stock $leido, Stock $nuevo): void
+    {
+        if ($this->conflictosAlReponer > 0) {
+            $this->conflictosAlReponer--;
+            throw new ConflictoConcurrencia;
+        }
+        if ($this->de($leido->productoCodigo)->version !== $leido->version) {
+            throw new ConflictoConcurrencia;
+        }
+        $this->stock[$leido->productoCodigo] = $nuevo;
     }
 
     /** Aplica un cambio exigiendo que la version no haya cambiado (bloqueo optimista). */

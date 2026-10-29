@@ -13,6 +13,7 @@ use Inventario\Entities\ItemReserva;
 use Inventario\UseCases\ConfirmarReserva;
 use Inventario\UseCases\LiberarStock;
 use Inventario\UseCases\Ports\ConflictoConcurrencia;
+use Inventario\UseCases\ReponerStock;
 use Inventario\UseCases\ReservarStock;
 use PHPUnit\Framework\TestCase;
 use Tests\Unit\Dobles\NotificadorEspia;
@@ -220,5 +221,76 @@ class ReservasTest extends TestCase
 
         $this->expectException(ReservaConfirmada::class);
         $this->liberar();
+    }
+
+    public function test_si_n8n_no_responde_el_aviso_se_reintenta_en_la_siguiente_venta(): void
+    {
+        $this->notificador->disponible = false;
+        $this->reservar([new ItemReserva('CER-001', 40)]);
+        $this->confirmar();   // queda 8 < 12, n8n caído
+        $this->assertFalse($this->stock->de('CER-001')->avisoEnviado);
+
+        $this->notificador->disponible = true;
+        $this->reservar([new ItemReserva('CER-001', 1)], '77aa3b9c-1d2e-4f50-a6b7-c8d9e0f1a2b3');
+        $this->confirmar('77aa3b9c-1d2e-4f50-a6b7-c8d9e0f1a2b3');
+
+        $this->assertSame([['productoCodigo' => 'CER-001', 'cantidad' => 7, 'minimo' => 12]], $this->notificador->avisos);
+        $this->assertTrue($this->stock->de('CER-001')->avisoEnviado);
+    }
+
+    public function test_si_otro_proceso_ya_marco_el_aviso_no_se_avisa_dos_veces(): void
+    {
+        $this->reservar([new ItemReserva('CER-001', 40)]);
+        $this->stock->marcarAvisoEnviado('CER-001');   // otra confirmación ganó la escritura condicional
+        $this->confirmar();
+
+        $this->assertSame([], $this->notificador->avisos);
+    }
+
+    // ---------- ReponerStock ----------
+
+    private function reponer(string $codigo, int $unidades)
+    {
+        return (new ReponerStock($this->stock))->ejecutar($codigo, $unidades);
+    }
+
+    public function test_reponer_sobre_el_minimo_borra_el_aviso_y_se_vuelve_a_avisar(): void
+    {
+        $this->reservar([new ItemReserva('CER-001', 40)]);
+        $this->confirmar();   // queda 8, se avisa
+        $s = $this->reponer('cer-001', 24);   // queda 32
+
+        $this->assertSame(32, $s->cantidad);
+        $this->assertFalse($this->stock->de('CER-001')->avisoEnviado);
+
+        $this->reservar([new ItemReserva('CER-001', 25)], '77aa3b9c-1d2e-4f50-a6b7-c8d9e0f1a2b3');
+        $this->confirmar('77aa3b9c-1d2e-4f50-a6b7-c8d9e0f1a2b3');   // queda 7: segundo aviso
+        $this->assertCount(2, $this->notificador->avisos);
+    }
+
+    public function test_reponer_poco_mantiene_el_aviso(): void
+    {
+        $this->reservar([new ItemReserva('CER-001', 40)]);
+        $this->confirmar();   // queda 8
+        $this->reponer('CER-001', 2);   // queda 10, sigue bajo 12
+
+        $this->assertTrue($this->stock->de('CER-001')->avisoEnviado);
+    }
+
+    public function test_reponer_reintenta_si_una_venta_cambio_el_stock(): void
+    {
+        $this->stock->conflictosAlReponer = 2;
+        $this->assertSame(53, $this->reponer('CER-001', 5)->cantidad);
+    }
+
+    public function test_reponer_valida_cantidad_y_producto(): void
+    {
+        try {
+            $this->reponer('CER-001', 0);
+            $this->fail('Debió rechazar la cantidad');
+        } catch (DatosInvalidos) {
+        }
+        $this->expectException(ProductoNoEncontrado::class);
+        $this->reponer('XXX-999', 3);
     }
 }

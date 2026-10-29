@@ -1,0 +1,130 @@
+{
+  "id": "cu06Reabastecer1",
+  "name": "CU06 Reabastecimiento por stock bajo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stock-bajo",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "191aa3bb-5726-5a78-972a-53a1ac8b5eb5",
+      "name": "Aviso de stock bajo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "471764ba-fedd-5ae2-9dbc-83a60f0de590"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.IA_URL }}/agentes/reabastecimiento",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ productoCodigo: $json.body.productoCodigo, nombre: $json.body.nombre, cantidad: $json.body.cantidad, minimo: $json.body.minimo }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "b0fc778a-b66d-57fa-92a1-feb763c2eb91",
+      "name": "Agente de reabastecimiento (ms-ia)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "keycloakN8nCred1",
+          "name": "Keycloak (cliente n8n)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Plantilla del correo con los colores de la licorería (blanco y lila)\nconst e = (v) => String(v ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' })[c]);\nconst plantilla = (titulo, contenido) => `\n<div style=\"font-family:Segoe UI,Arial,sans-serif;background:#f7f4ff;padding:24px;color:#241a38\">\n  <div style=\"max-width:620px;margin:0 auto;background:#fff;border:1px solid #ebe7f4;border-radius:14px;overflow:hidden\">\n    <div style=\"background:linear-gradient(135deg,#8b5cf6,#6a2fd0);color:#fff;padding:18px 24px;font-size:18px;font-weight:700\">Licorería · ${e(titulo)}</div>\n    <div style=\"padding:20px 24px;font-size:14px;line-height:1.5\">${contenido}</div>\n    <div style=\"padding:12px 24px;background:#faf9fd;color:#6c6880;font-size:12px\">Correo automático de n8n. No responder.</div>\n  </div>\n</div>`;\nconst tabla = (cabeceras, filas) => `<table style=\"border-collapse:collapse;width:100%;font-size:13px\"><tr>${cabeceras.map((c, i) =>\n  `<th style=\"text-align:${i ? 'right' : 'left'};padding:6px 8px;border-bottom:2px solid #ddd2fe;color:#6a2fd0\">${e(c)}</th>`).join('')}</tr>${filas.map((f) =>\n  `<tr>${f.map((v, i) => `<td style=\"text-align:${i ? 'right' : 'left'};padding:6px 8px;border-bottom:1px solid #ebe7f4\">${e(v)}</td>`).join('')}</tr>`).join('')}</table>`;\n\nconst aviso = $('Aviso de stock bajo').first().json.body ?? {};\nconst r = $input.first().json;   // respuesta del agente, o { error } si no respondió\nconst producto = `${aviso.nombre ?? aviso.productoCodigo} (${aviso.productoCodigo})`;\nconst datos = tabla(['Producto', 'Quedan', 'Mínimo'], [[producto, aviso.cantidad, aviso.minimo]]);\n\nlet asunto, contenido;\nif (!r.error && r.ordenCreada) {\n  const lineas = (r.lineas ?? []).map((l) => [l.productoCodigo ?? l.producto ?? '', l.cantidad ?? '', l.precioUnitario ?? '']);\n  asunto = `Orden de compra ${r.numero} creada por stock bajo de ${aviso.nombre ?? aviso.productoCodigo}`;\n  contenido = `<p>El agente de reabastecimiento creó la orden de compra <b>${e(r.numero)}</b>.</p>${datos}\n    <h3 style=\"color:#6a2fd0;margin:20px 0 8px\">Líneas de la orden</h3>${tabla(['Producto', 'Cantidad', 'Precio unit. (Bs)'], lineas)}`;\n} else {\n  const motivo = r.error\n    ? 'El agente de reabastecimiento (ms-ia) no respondió, así que no se creó una orden automática.'\n    : (r.motivo ?? 'El agente decidió no crear una orden de compra.');\n  asunto = `Stock bajo: ${aviso.nombre ?? aviso.productoCodigo} (quedan ${aviso.cantidad})`;\n  contenido = `<p>${e(motivo)} Revise el producto y registre la orden de compra si hace falta.</p>${datos}`;\n}\nreturn [{ json: { asunto, cuerpo: plantilla('Stock bajo', contenido), ordenCreada: !r.error && !!r.ordenCreada } }];\n"
+      },
+      "id": "bf79cd47-e4e3-5aa8-82d3-1baeb9a7a621",
+      "name": "Armar correo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.EMAIL_REMITENTE }}",
+        "toEmail": "={{ $env.GERENTE_EMAIL }}",
+        "subject": "={{ $json.asunto }}",
+        "emailFormat": "html",
+        "html": "={{ $json.cuerpo }}",
+        "options": {}
+      },
+      "id": "2891db93-24ac-5c9f-ae26-ec4558f9381d",
+      "name": "Correo al gerente",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        780,
+        0
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtpLicoreria001",
+          "name": "SMTP licorería"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Aviso de stock bajo": {
+      "main": [
+        [
+          {
+            "node": "Agente de reabastecimiento (ms-ia)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente de reabastecimiento (ms-ia)": {
+      "main": [
+        [
+          {
+            "node": "Armar correo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar correo": {
+      "main": [
+        [
+          {
+            "node": "Correo al gerente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/La_Paz"
+  },
+  "pinData": {},
+  "active": true
+}

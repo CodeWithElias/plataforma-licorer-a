@@ -27,6 +27,18 @@ final readonly class Stock
         return $this->disponible() >= $unidades;
     }
 
+    /**
+     * Entrada de mercadería. Si con ella vuelve a quedar en o sobre el mínimo, se borra la marca del aviso
+     * para que la próxima vez que baje se avise de nuevo.
+     */
+    public function reponer(int $unidades): self
+    {
+        $cantidad = $this->cantidad + $unidades;
+
+        return new self($this->productoCodigo, $cantidad, $this->reservado, $this->minimo, $this->version + 1,
+            $this->avisoEnviado && $cantidad < $this->minimo);
+    }
+
     /** ¿Al descontar estas unidades queda por debajo del mínimo? */
     public function quedaBajoMinimo(int $unidadesDescontadas): bool
     {

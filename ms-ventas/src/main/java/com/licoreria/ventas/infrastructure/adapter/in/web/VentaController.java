@@ -53,7 +53,7 @@ public class VentaController {
     List<LineaPedida> items = cuerpo.items().stream()
         .map(i -> new LineaPedida(i.productoCodigo(), i.cantidad() == null ? 0 : i.cantidad()))
         .toList();
-    Comando comando = new Comando(operationId, jwt.getSubject(), items, metodo(cuerpo), OrigenVenta.ONLINE);
+    Comando comando = new Comando(operationId, jwt.getSubject(), items, metodo(cuerpo), OrigenVenta.ONLINE, null);
 
     RegistrarVentaUseCase.Resultado r = registrar.registrar(comando, jwt.getTokenValue());
     return ResponseEntity.status(r.nueva() ? HttpStatus.CREATED : HttpStatus.OK).body(VentaCreada.de(r.venta()));
