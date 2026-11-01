@@ -155,6 +155,176 @@ sequenceDiagram
 
 ---
 
+### 2.4. Diagrama de Secuencia ICONIX: CU04 – Reconocimiento de Producto por Cámara
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cajero
+    participant POS as mfe-pos (Pos.tsx)
+    participant Modal as CamaraModal.tsx
+    participant WebRTC as Navegador (MediaDevices API)
+    participant IA as ms-ia / Simulador Sintético Dev 3
+
+    Cajero->>POS: Clic en botón "📷 Escanear cámara"
+    POS->>Modal: Renderiza CamaraModal(onDetectar)
+    Modal->>WebRTC: navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    WebRTC-->>Modal: MediaStream (video en vivo)
+    Modal->>Modal: Activa visor con retícula láser de escaneo animada
+
+    alt Detección por Stream o Chip Sintético
+        Cajero->>Modal: Enfoca etiqueta o selecciona Chip (ej: "CER-001")
+        Modal->>IA: Envía frame de video / código detectado
+        IA-->>Modal: Código identificado ("CER-001")
+    end
+
+    Modal->>WebRTC: Detiene tracks de video (stream.getTracks().stop())
+    Modal->>POS: Invoca callback onDetectar("CER-001")
+    POS->>POS: Busca producto por código en catálogo local
+    POS->>POS: Agrega producto al carrito de compras
+    POS-->>Cajero: Feedback visual y producto listado en carrito
+```
+
+---
+
+### 2.5. Diagramas de Robustez ICONIX (Boundary - Control - Entity)
+
+#### Robustez CU03: Venta Offline y Sincronización
+```mermaid
+flowchart LR
+    Cajero((Cajero))
+    B1["«Boundary»<br/>Pantalla POS (Pos.tsx)"]
+    B2["«Boundary»<br/>ColaOfflineModal"]
+    B3["«Boundary»<br/>ms-ventas (/sync)"]
+
+    C1["«Control»<br/>Controlador Cobro"]
+    C2["«Control»<br/>Sincronizador Lotes"]
+
+    E1[("«Entity»<br/>IndexedDB ventasOffline")]
+    E2[("«Entity»<br/>IndexedDB catalogoLocal")]
+
+    Cajero --> B1
+    Cajero --> B2
+    B1 --> C1
+    C1 --> E1
+    C1 -.->|Consulta precio| E2
+    B2 --> C2
+    C2 --> E1
+    C2 --> B3
+```
+
+#### Robustez CU07: Generación y Exportación de Reportes
+```mermaid
+flowchart LR
+    Gerente((Gerente / n8n))
+    B_UI["«Boundary»<br/>mfe-gestion (ReportesLista)"]
+    B_GQL["«Boundary»<br/>GraphQL :3000/graphql"]
+    B_REST["«Boundary»<br/>REST /reportes/descargar/:id"]
+
+    C_EXP["«Control»<br/>Caso de Uso ExportarReporte"]
+    C_PDF["«Control»<br/>MotorPdf (pdfmake)"]
+
+    E_DOC[("«Entity»<br/>MongoDB Colección reportes")]
+    E_BUF["«Entity»<br/>Caché Buffer en Memoria"]
+
+    Gerente --> B_UI
+    Gerente --> B_REST
+    B_UI --> B_GQL
+    B_GQL --> C_EXP
+    B_REST --> C_EXP
+    C_EXP --> E_DOC
+    C_EXP --> C_PDF
+    C_PDF --> E_BUF
+    E_BUF --> B_REST
+```
+
+---
+
+### 2.6. Diagrama de Estados: Ciclo de Vida de la Venta en Cola Offline
+
+```mermaid
+stateDiagram-v2
+    [*] --> CarritoEnCreacion: Cajero escanea o agrega items
+    CarritoEnCreacion --> VerificandoConexion: Cajero pulsa Cobrar
+    
+    VerificandoConexion --> VentaDirectaOnline: Conexión Activa (Online)
+    VerificandoConexion --> GuardandoIndexedDB: Sin Red (Offline) / Falla Red
+    
+    GuardandoIndexedDB --> PENDIENTE: Guardado en IndexedDB local con UUID
+    
+    PENDIENTE --> SINCRONIZANDO: Evento "online" o Clic en "Sincronizar"
+    SINCRONIZANDO --> LoteEnviado: POST /api/ventas/ventas/sync
+    
+    LoteEnviado --> ELIMINADO: Resultado === "OK" o "DUPLICADO"
+    LoteEnviado --> ERROR: Resultado === "ERROR" (ej: SIN_STOCK)
+    
+    ERROR --> PENDIENTE: Cajero reintenta o corrige
+    ELIMINADO --> [*]
+```
+
+---
+
+### 2.7. Diagrama de Clases del Modelo de Dominio y Persistencia
+
+```mermaid
+classDiagram
+    class Reporte {
+        +string id
+        +string consulta
+        +string[] columnas
+        +Record~string, any~[] datos
+        +TipoGrafico tipoGrafico
+        +string resumen
+        +string creadoPor
+        +Date fecha
+        +ArchivoAdjunto[] archivos
+        +conId(nuevoId: string) Reporte
+    }
+
+    class ReporteRepository {
+        <<interface>>
+        +buscarPorId(id: string) Promise~Reporte~
+        +listar() Promise~Reporte[]~
+        +guardar(reporte: Reporte) Promise~Reporte~
+        +actualizarArchivos(id: string, archivos) Promise~void~
+    }
+
+    class MongoReporteRepository {
+        -Db db
+        +buscarPorId(id: string) Promise~Reporte~
+        +listar() Promise~Reporte[]~
+        +guardar(reporte: Reporte) Promise~Reporte~
+    }
+
+    class MotorPdf {
+        +generarBuffer(reporte: Reporte) Promise~Buffer~
+        -armarTabla(reporte: Reporte) any
+    }
+
+    class ExportarReporte {
+        -ReporteRepository repo
+        -MotorPdf motorPdf
+        -Map cache
+        +ejecutar(id: string, formato: string) Promise~ArchivoReporteDto~
+        +obtenerBuffer(id: string, formato: string) Promise~BufferDto~
+    }
+
+    class IndexedDbPos {
+        <<singleton>>
+        +guardarVentaOffline(venta) Promise~string~
+        +listarVentasOffline() Promise~VentaOffline[]~
+        +eliminarVentaOffline(operationId: string) Promise~void~
+        +marcarVentaConError(operationId: string, motivo: string) Promise~void~
+        +contarVentasOffline() Promise~number~
+    }
+
+    ReporteRepository <|.. MongoReporteRepository
+    ExportarReporte --> ReporteRepository
+    ExportarReporte --> MotorPdf
+    MongoReporteRepository ..> Reporte
+
+---
+
 ## 3. Catálogo de Archivos y Responsabilidades
 
 ### 3.1. Microfrontend Punto de Venta (`mfe-pos/`)
