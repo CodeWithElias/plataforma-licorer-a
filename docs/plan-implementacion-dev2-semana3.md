@@ -1,394 +1,316 @@
-# Plan de Implementación y Arquitectura – Dev 2 (Semana 3)
+# Informe de Implementación, Arquitectura y Guía de Pruebas – Dev 2 (Semana 3)
 **Plataforma Integral para Licorería – Metodología ICONIX**  
 **Responsable:** Dev 2 (Gestión Empresarial y Frontends Web)  
-**Versión:** 1.0.0  
+**Versión:** 2.0.0 (Implementado y Verificado)  
 **Fecha:** 2026-11-01  
-**Rama base:** `feature/pepeline`
+**Rama activa:** `feature/pepeline` (Commits: `0da53d9`, `fb5a8c5`)
 
 ---
 
-## 1. Introducción y Objetivos de la Semana 3
+## 1. Resumen Ejecutivo de la Implementación
 
-En la Semana 3, tras haberse completado las bases de la infraestructura, autenticación SSO (Keycloak), la Saga distribuida de ventas (CU02) y la gestión de proveedores (CU05), los objetivos asignados a **Dev 2** corresponden a:
+En cumplimiento con los requerimientos asignados a **Dev 2** para la **Semana 3**, se implementaron y verificaron de extremo a extremo los siguientes tres casos de uso prioritarios:
 
-1. **CU03 – Vender offline y sincronizar:** Implementar el soporte Offline-First en el Punto de Venta (`mfe-pos`), almacenamiento transaccional local y sincronización por lotes contra `POST /api/ventas/ventas/sync` de `ms-ventas`.
-2. **CU07 – Generar y exportar reporte:** Implementar el Bounded Context de Reportes en `ms-gestion` (NestJS DDD), la mutation GraphQL `exportarReporte(id, formato: PDF)` y el endpoint de descarga para completar el workflow diario de `n8n` (`cu07-reporte-diario.json`), junto a la interfaz en `mfe-gestion`.
-3. **CU04 – Reconocer producto por cámara (Navegador):** Diseñar e integrar el componente de visión artificial por cámara en el `mfe-pos` conectado a `ms-ia`.
+1. **CU03 – Venta Offline y Sincronización en `mfe-pos` (Opción 2: IndexedDB Nativo)**:
+   - Capa de base de datos local pura (`window.indexedDB`) sin dependencias npm externas.
+   - Stores transaccionales: `ventasOffline` (con índice de sincronización) y `catalogoLocal` (con TTL de caché).
+   - Detección reactiva de conexión (`online`/`offline`), botón de cobro offline y sincronización por lotes contra `POST /api/ventas/ventas/sync`.
+   - Modal de administración de cola con resolución de errores individuales.
 
----
+2. **CU04 – Reconocimiento por Cámara en `mfe-pos`**:
+   - Captura de video en tiempo real vía `navigator.mediaDevices.getUserMedia`.
+   - Interfaz con retícula de escaneo y efecto visual de láser.
+   - Selector de pruebas rápidas con códigos de barras sintéticos de Dev 3 (`CER-001`, `VIN-001`, `SIN-003`, `RON-002`, `WHI-003`).
 
-## 2. Análisis Comparativo de Alternativas Técnicas
-
-### 2.1. Opciones para la Cola Offline en el POS (`mfe-pos` - CU03)
-
-El contrato de integración con `ms-ventas` (`docs/acuerdos-integracion.md` y `docs/openapi.yaml`) establece:
-* Endpoint: `POST /api/ventas/ventas/sync`
-* Entrada: Array de hasta 50 ventas:
-  ```json
-  [
-    {
-      "operationId": "aaaaaaaa-0000-4000-8000-000000000001",
-      "items": [{ "productoCodigo": "VIN-001", "cantidad": 1 }],
-      "pago": { "metodo": "QR" },
-      "fechaLocal": "2026-10-28T09:15:00-04:00"
-    }
-  ]
-  ```
-* Salida: Array con estado individual por venta:
-  ```json
-  [
-    { "operationId": "...", "resultado": "OK", "ventaId": "...", "numero": 154 },
-    { "operationId": "...", "resultado": "DUPLICADO", "ventaId": "...", "numero": 154 },
-    { "operationId": "...", "resultado": "ERROR", "motivo": "SIN_STOCK", "mensaje": "..." }
-  ]
-  ```
-* Regla estricta: El POS debe **eliminar** de su cola las ventas con `OK` y `DUPLICADO`, y conservar/alertar las que den `ERROR`.
-
-#### Cuadro Comparativo de Soluciones:
-
-| Característica | Opción A: `localStorage` | Opción B: `IndexedDB` Nativo | Opción C: `IndexedDB` con `Dexie.js` *(Elegida)* | Opción D: Background Sync API |
-| :--- | :--- | :--- | :--- | :--- |
-| **Capacidad de almacenamiento** | ~5 MB máximo | > 500 MB (prácticamente ilimitado) | > 500 MB con transacciones seguras | Depende del Service Worker |
-| **Modelo de datos** | Solo cadenas de texto (JSON.stringify) | Objetos estructurados JavaScript | Esquemas tipados con TypeScript y claves primarias | Objetos en cache de request |
-| **Rendimiento** | Bloqueante (síncrono en hilo principal) | Asíncrono no bloqueante | Asíncrono optimizado con promesas | Asíncrono en segundo plano |
-| **Complejidad de código** | Muy baja, pero propenso a corrupción | Alta (API DOM por eventos de bajo nivel) | Baja / Limpia (sintaxis similar a ORM) | Muy alta (comportamiento no determinista) |
-| **Compatibilidad Navegadores** | 100% | > 99% | > 99% | Incompleto (No soportado en Safari/iOS) |
-| **Reactividad** | No reactivo | No reactivo | Live Queries reactivas | N/A |
-
-**Decisión Técnica:** **Opción C (`Dexie.js`)**.
-- Garantiza transacciones ACID locales.
-- Permite almacenar tanto la cola de ventas pendientes (`ventasOffline`) como una copia en caché del catálogo (`catalogoCache`) para que el cajero pueda buscar y cotizar productos sin red.
-- Compatible con PWA y Service Workers.
+3. **CU07 – Generar y Exportar Reportes en `ms-gestion` y `mfe-gestion` (Opción 2: pdfmake)**:
+   - Bounded Context de Reportes con arquitectura DDD en capas (`dominio`, `aplicacion`, `infraestructura`, `interfaces`).
+   - Motor de generación de PDF en memoria (`pdfmake`) con tipografía estándar `Helvetica` y estilos acordes a la identidad institucional (blanco y lila).
+   - Endpoint REST público `GET /reportes/descargar/:id?formato=pdf` optimizado para la automatización de `n8n` (`cu07-reporte-diario.json`).
+   - GraphQL Resolver con query `reportes` y mutation `exportarReporte(id, formato: PDF)`.
+   - Interfaz en Angular en `mfe-gestion`: pestaña `Reportes` con métricas clave, listado con resumen ejecutivo y botón interactivo de descarga.
 
 ---
 
-### 2.2. Opciones para la Exportación de Reportes (`ms-gestion` y `mfe-gestion` - CU07)
+## 2. Diagramas de Arquitectura y Secuencia ICONIX
 
-El workflow de `n8n` (`n8n/workflows/cu07-reporte-diario.json`) ejecuta a las 23:00 los siguientes pasos:
-1. `GET http://ms-ventas:8080/ventas?desde=...&hasta=...` (agrega totales por producto).
-2. `POST http://ms-ia:8002/reportes` (Dev 3, genera resumen y `reporteId`).
-3. Mutation GraphQL en `ms-gestion`:
-   ```graphql
-   mutation ExportarReporte($id: ID!, $formato: FormatoExportacion!) {
-     exportarReporte(id: $id, formato: $formato) {
-       id
-       nombre
-       formato
-       url
-     }
-   }
-   ```
-4. Descarga del archivo por HTTP desde la `url` provista y envío por correo Gmail al Gerente con el PDF adjunto.
+### 2.1. Arquitectura de Componentes de Dev 2
 
-#### Cuadro Comparativo en Backend (`ms-gestion`):
+```mermaid
+graph TD
+    subgraph Frontend_Web["Frontends Web (Dev 2)"]
+        POS["mfe-pos (React 19 + Vite)<br/>Puerto :4202"]
+        GESTION["mfe-gestion (Angular 22 + Native Federation)<br/>Puerto :4201"]
+        IDB[("IndexedDB Nativo<br/>licoreria_pos_db")]
+        CAM["WebRTC Camera Stream<br/>CamaraModal"]
+    end
 
-| Característica | Opción A: `Puppeteer` (Chromium Headless) | Opción B: `pdfmake` *(Elegida)* | Opción C: `pdf-lib` |
-| :--- | :--- | :--- | :--- |
-| **Huella en Memoria** | ~300 MB a 500 MB (requiere binario Chrome) | < 15 MB (100% JS puro) | < 10 MB |
-| **Compatibilidad Docker** | Requiere instalar dependencias de X11 en el contenedor | Cero dependencias nativas del SO | Cero dependencias nativas |
-| **Velocidad de Renderizado** | 1.5 a 3.5 segundos por documento | 50 a 120 ms por documento | 40 a 90 ms |
-| **Facilidad para Tablas y Estilos** | HTML y CSS estándar | Estructura declarativa tipo JSON | Coordenadas cartesianas manuales |
+    subgraph Backend_Gestion["ms-gestion (NestJS DDD - Puerto :3000)"]
+        CTRL["ReporteDescargaController<br/>GET /reportes/descargar/:id"]
+        RESOLVER["ReporteResolver<br/>GraphQL :3000/graphql"]
+        USECASE["ExportarReporte<br/>(Caso de Uso)"]
+        MOTOR["MotorPdf<br/>(pdfmake in-memory)"]
+        MONGO_REPO["MongoReporteRepository<br/>(Colección reportes)"]
+    end
 
-**Decisión Técnica en Backend:** **Opción B (`pdfmake`)**.
-- Es liviano, seguro para ejecutar en Docker sin sobrecargar el servidor y soporta tablas, fuentes y colores corporativos de la Licorería.
-- Expone un endpoint de streaming `GET /reportes/descargar/:id` para que tanto n8n como el navegador descarguen el archivo.
+    subgraph Integraciones_Externas["Otros Subsistemas"]
+        VENTAS["ms-ventas (Dev 1)<br/>POST /api/ventas/ventas/sync"]
+        N8N["n8n Workflow (CU07)<br/>Trigger 23:00 Diario"]
+        ATLAS[("MongoDB Atlas<br/>Base: gestion")]
+    end
 
-#### Opciones en Frontend (`mfe-gestion`):
-- Se completa la pestaña `Reportes` en `mfe-gestion/src/app/gestion/gestion.ts` (reemplazando la etiqueta `"Próximamente"`).
-- Se implementa un panel de indicadores ejecutivos (Recaudación, ticket promedio, volumen por categoría) con botones para exportar a PDF y Excel, manteniendo la coherencia visual blanco y lila.
+    POS -->|Lee/Escribe transacciones| IDB
+    POS -->|Escanea etiquetas| CAM
+    POS -->|Sincronización en lote| VENTAS
 
----
+    GESTION -->|Query reportes & Mutation exportar| RESOLVER
+    N8N -->|1. Mutation exportarReporte| RESOLVER
+    N8N -->|2. GET binario PDF| CTRL
+    GESTION -->|Descarga directa PDF| CTRL
 
-### 2.3. Opciones para el Reconocimiento de Cámara en el POS (`mfe-pos` - CU04)
-
-Dev 3 expone el modelo sintético y el endpoint REST `POST /api/ia/imagen/clasificar` en `ms-ia:8002` (que recibe una imagen y retorna `productoCodigo: CER-001`, etc.).
-
-#### Cuadro Comparativo:
-
-| Característica | Opción A: TensorFlow.js en Cliente Puro | Opción B: Delegación API a `ms-ia` | Opción C: Híbrido con WebRTC + Fallback *(Elegida)* |
-| :--- | :--- | :--- | :--- |
-| **Carga en el Navegador** | Descarga modelo de 9MB en memoria de GPU | Ligero, solo envía frames capturados | Ligero y modular |
-| **Independencia de Dev 3** | Requiere que Dev 3 convierta modelo a formato web | Depende de que `ms-ia` esté online | Funciona con el endpoint real o simulación asistida |
-| **Experiencia de Usuario** | Inferencia instantánea en tiempo real | Depende de la latencia de red | Visor de cámara WebRTC con retículo láser |
-
-**Decisión Técnica:** **Opción C (Híbrido)**.
-- Se implementa un modal en `mfe-pos` con stream de video nativo `navigator.mediaDevices.getUserMedia`.
-- Se dibuja el frame capturado en un `<canvas>` oculto para enviarlo a `/api/ia/imagen/clasificar`.
-- Se provee una botonera de acceso rápido a los 5 productos sintéticos del modelo (`CER-001`, `VIN-001`, `SIN-003`, `RON-002`, `WHI-003`) permitiendo ejecutar el guion de pruebas sin depender de la cámara física.
+    RESOLVER --> USECASE
+    CTRL --> USECASE
+    USECASE --> MOTOR
+    USECASE --> MONGO_REPO
+    MONGO_REPO --> ATLAS
+```
 
 ---
 
-## 3. Diagramas de Diseño y Robustez (ICONIX)
-
-### 3.1. Diagrama de Secuencia: CU03 – Venta Offline y Sincronización
+### 2.2. Diagrama de Secuencia ICONIX: CU03 – Venta Offline y Sincronización
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Cajero
-    participant POS as MFE POS (React PWA)
-    participant Dexie as IndexedDB (Dexie.js)
-    participant Gateway as Nginx (:80)
-    participant Ventas as ms-ventas (:8080)
-    participant DB as Postgres (idempotency_keys)
+    participant UI as mfe-pos (Pos.tsx)
+    participant IDB as IndexedDB (indexed-db.ts)
+    participant API as mfe-pos (api.ts)
+    participant Ventas as ms-ventas (/sync)
 
-    Note over Cajero,Dexie: Modo Offline (Sin Conexión)
-    Cajero->>POS: Arma carrito y presiona "Cobrar Offline"
-    POS->>POS: Genera operationId = UUIDv4
-    POS->>Dexie: guardarVentaOffline({ operationId, items, pago, fechaLocal })
-    Dexie-->>POS: Confirmación local guardada
-    POS->>Cajero: Muestra ticket local con aviso "Pendiente de Sincronización"
+    Cajero->>UI: Agrega productos al carrito
+    Note over UI: Red desconectada (navigator.onLine = false)
+    Cajero->>UI: Clic en "Cobrar Offline"
+    UI->>IDB: guardarVentaOffline(payloadVenta)
+    IDB-->>UI: Guardado con UUID y estado "PENDIENTE"
+    UI->>UI: Incrementa badge reactivo de cola offline
+    UI-->>Cajero: Alerta: "Venta guardada en cola local"
 
-    Note over POS,DB: Reconexión a Internet
-    POS->>POS: Evento window "online" o usuario presiona "Sincronizar"
-    POS->>Dexie: obtenerVentasPendientes()
-    Dexie-->>POS: Lote de ventas [V1, V2, ...]
-    POS->>Gateway: POST /api/ventas/ventas/sync (Lote con Token Bearer)
-    Gateway->>Ventas: Reenvía petición a ms-ventas
-    
-    loop Por cada venta del lote
-        Ventas->>DB: Verifica operationId en idempotency_keys
-        alt Si ya existe
-            Ventas-->>Ventas: Marca resultado = DUPLICADO
-        else Si es nueva
-            Ventas->>Ventas: Ejecuta Saga de Venta (Reserva + Ingreso)
-            Ventas-->>Ventas: Marca resultado = OK (o ERROR si no hay stock)
+    Note over UI: Conexión restablecida (evento "online")
+    Cajero->>UI: Clic en badge o botón "Sincronizar Cola"
+    UI->>IDB: listarVentasOffline()
+    IDB-->>UI: Array de ventas pendientes
+    UI->>API: sincronizarVentasLote(ventas)
+    API->>Ventas: POST /api/ventas/ventas/sync (Lote JSON)
+    Ventas-->>API: Array de resultados [{ operationId, resultado: "OK" | "DUPLICADO" | "ERROR" }]
+
+    loop Por cada resultado
+        alt resultado === "OK" o "DUPLICADO"
+            API->>IDB: eliminarVentaOffline(operationId)
+        else resultado === "ERROR"
+            API->>IDB: marcarVentaConError(operationId, motivo)
         end
     end
-
-    Ventas-->>Gateway: HTTP 200 [{ operationId, resultado: OK|DUPLICADO|ERROR, ventaId, numero }]
-    Gateway-->>POS: Respuesta del Lote
-    
-    POS->>Dexie: eliminarVentas(OK y DUPLICADO)
-    POS->>Dexie: actualizarVentasConError(ERROR)
-    POS->>Cajero: Notificación visual: "Sincronización completada exitosamente"
+    API-->>UI: Resumen { sincronizadas, conError, errores }
+    UI-->>Cajero: Muestra resumen de sincronización
 ```
 
 ---
 
-### 3.2. Diagrama de Secuencia: CU07 – Generación y Exportación de Reportes
+### 2.3. Diagrama de Secuencia ICONIX: CU07 – Reporte Diario y Exportación a PDF
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Cron as Programador n8n (23:00)
-    participant n8n as n8n Workflow (:5678)
-    participant Ventas as ms-ventas (:8080)
-    participant IA as ms-ia (:8002)
-    participant Gestion as ms-gestion (:3000)
-    participant Mongo as MongoDB Atlas
-    actor Gerente as Gerente (Email / MFE)
+    participant n8n as n8n (Cron 23:00)
+    participant MFE as mfe-gestion (ReportesLista)
+    participant GQL as ms-gestion (ReporteResolver)
+    participant CU as ExportarReporte (Caso de Uso)
+    participant PDF as MotorPdf (pdfmake)
+    participant REST as ReporteDescargaController
+    actor Gerente
 
-    Cron->>n8n: Disparo programado de las 23:00
-    n8n->>Ventas: GET /ventas?desde=...&hasta=...
-    Ventas-->>n8n: Ventas COMPLETADAS del día
-    n8n->>IA: POST /reportes (Agente analista)
-    IA-->>n8n: { resumen: "...", reporteId: "rep-01" }
-    
-    n8n->>Gestion: mutation exportarReporte(id: "rep-01", formato: PDF)
-    Gestion->>Mongo: Buscar datos de venta y reporte
-    Gestion->>Gestion: Renderizar plantilla PDF con pdfmake en memoria
-    Gestion->>Mongo: Registrar archivo generado y URL
-    Gestion-->>n8n: { id, nombre: "reporte.pdf", url: "http://ms-gestion:3000/reportes/descargar/rep-01" }
-    
-    n8n->>Gestion: GET /reportes/descargar/rep-01
-    Gestion-->>n8n: Stream binario application/pdf
-    n8n->>Gerente: Envío de correo Gmail con PDF adjunto y tabla resumen
+    alt Flujo Automático n8n
+        n8n->>GQL: Mutation exportarReporte(id: "rep-01", formato: PDF)
+        GQL->>CU: ejecutar(id, "PDF")
+        CU->>PDF: generarBuffer(reporte)
+        PDF-->>CU: Buffer binario PDF (%PDF-)
+        CU->>CU: Guarda en caché interna `${id}:pdf`
+        CU-->>GQL: { formato: "PDF", url: "http://ms-gestion:3000/reportes/descargar/rep-01" }
+        GQL-->>n8n: ArchivoReporteDto con URL de descarga
+        n8n->>REST: GET /reportes/descargar/rep-01?formato=pdf
+        REST->>CU: obtenerBuffer("rep-01", "pdf")
+        CU-->>REST: Buffer PDF en memoria
+        REST-->>n8n: 200 OK (Content-Type: application/pdf)
+        n8n->>Gerente: Envía correo SMTP con PDF adjunto
+    else Consulta Manual desde el Frontend
+        Gerente->>MFE: Entra a pestaña "Reportes"
+        MFE->>GQL: Query reportes()
+        GQL-->>MFE: Lista de reportes consolidados
+        Gerente->>MFE: Clic en "📄 Descargar PDF"
+        MFE->>GQL: Mutation exportarReporte(id, formato: PDF)
+        GQL-->>MFE: URL de descarga directa
+        MFE->>Gerente: Abre visor de PDF en navegador
+    end
 ```
 
 ---
 
-### 3.3. Arquitectura DDD de `ms-gestion` para el Bounded Context de Reportes
+## 3. Catálogo de Archivos y Responsabilidades
 
-```mermaid
-classDiagram
-    direction TB
-    
-    namespace Interfaces {
-        class ReporteResolver {
-            +exportarReporte(id, formato)
-            +reportes()
-        }
-        class ReporteDescargaController {
-            +descargarPdf(id, res)
-        }
-    }
+### 3.1. Microfrontend Punto de Venta (`mfe-pos/`)
 
-    namespace Aplicacion {
-        class ExportarReportePdf {
-            -reportesRepo: ReporteRepository
-            +ejecutar(reporteId): Promise~Buffer~
-        }
-        class ConsultarReportes {
-            -reportesRepo: ReporteRepository
-            +ejecutar(): Promise~Reporte[]~
-        }
-    }
+| Archivo | Responsabilidad |
+|---|---|
+| [`src/db/indexed-db.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/db/indexed-db.ts) | Driver nativo de IndexedDB (`licoreria_pos_db`). Transacciones sobre `ventasOffline` y `catalogoLocal`. |
+| [`src/api.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/api.ts) | Integración con `POST /api/ventas/ventas/sync`. Caché transparente de productos y fallback offline. |
+| [`src/Pos.tsx`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/Pos.tsx) | Componente raíz: listeners de red `online`/`offline`, botón condicional "Cobrar Offline", badge de cola. |
+| [`src/CamaraModal.tsx`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/CamaraModal.tsx) | Modal WebRTC con retícula de escaneo láser y simulador con chips sintéticos Dev 3. |
+| [`src/ColaOfflineModal.tsx`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/ColaOfflineModal.tsx) | Modal de gestión de la cola local con botón de sincronización manual y detalle de errores. |
+| [`src/estilos.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/estilos.ts) | Estilos CSS con tokens corporativos (blanco `#faf9fd`, degradado lila `#8b5cf6` a `#6a2fd0`). |
+| [`src/api.test.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/api.test.ts) | Pruebas unitarias de almacenamiento en cola, procesamiento de lotes y purga local. |
 
-    namespace Dominio {
-        class Reporte {
-            +id: string
-            +fecha: Date
-            +totalRecaudado: number
-            +resumen: string
-            +lineas: LineaReporte[]
-            +formato: string
-            +crear(datos)
-        }
-        class ReporteRepository {
-            <<interface>>
-            +buscarPorId(id): Promise~Reporte~
-            +guardar(reporte): Promise~Reporte~
-            +listar(): Promise~Reporte[]~
-        }
-    }
+### 3.2. Microservicio de Gestión Empresarial (`ms-gestion/`)
 
-    namespace Infraestructura {
-        class ReporteMongoRepository {
-            -model: Model~ReporteDocument~
-            +buscarPorId(id)
-            +guardar(reporte)
-            +listar()
-        }
-        class MotorPdfMake {
-            +generarBuffer(reporte): Promise~Buffer~
-        }
-    }
+| Archivo | Responsabilidad |
+|---|---|
+| [`src/reportes/dominio/reporte.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/dominio/reporte.ts) | Agregado `Reporte` y tipos de gráfico/formato según `db/gestion.js`. |
+| [`src/reportes/dominio/reporte.repository.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/dominio/reporte.repository.ts) | Interfaz puerto del repositorio y excepción de dominio `ReporteNoEncontrado`. |
+| [`src/reportes/infraestructura/motor-pdf.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/infraestructura/motor-pdf.ts) | Generador de documentos PDF con `pdfmake` en memoria, política de acceso segura y fuente Helvetica. |
+| [`src/reportes/infraestructura/mongo-reporte.repository.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/infraestructura/mongo-reporte.repository.ts) | Adaptador MongoDB para persistencia de reportes con semillas iniciales de demostración. |
+| [`src/reportes/aplicacion/listar-reportes.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/aplicacion/listar-reportes.ts) | Caso de uso para obtener el listado histórico de reportes. |
+| [`src/reportes/aplicacion/exportar-reporte.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/aplicacion/exportar-reporte.ts) | Caso de uso para generar el PDF, almacenar en caché el buffer binario y registrar la URL. |
+| [`src/reportes/aplicacion/exportar-reporte.spec.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/aplicacion/exportar-reporte.spec.ts) | Suite de pruebas unitarias Vitest para la generación del PDF (firma `%PDF-`) y manejo de errores. |
+| [`src/reportes/infraestructura/reporte-descarga.controller.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/infraestructura/reporte-descarga.controller.ts) | Endpoint REST `@Publico()` `GET /reportes/descargar/:id` con headers binarios adecuados. |
+| [`src/reportes/interfaces/reporte.resolver.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/interfaces/reporte.resolver.ts) | Resolver GraphQL para query `reportes` y mutation `exportarReporte`. |
+| [`src/reportes/reportes.module.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/reportes.module.ts) | Módulo NestJS que enlaza controladores, proveedores y casos de uso. |
 
-    ReporteResolver --> ExportarReportePdf
-    ReporteDescargaController --> ExportarReportePdf
-    ExportarReportePdf --> ReporteRepository
-    ExportarReportePdf --> MotorPdfMake
-    ReporteMongoRepository ..|> ReporteRepository
-```
+### 3.3. Microfrontend de Gestión (`mfe-gestion/`)
+
+| Archivo | Responsabilidad |
+|---|---|
+| [`src/app/reportes/reportes.graphql.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-gestion/src/app/reportes/reportes.graphql.ts) | Definiciones tipadas de `LISTAR_REPORTES` y `EXPORTAR_REPORTE` con Apollo Angular. |
+| [`src/app/reportes/reportes-lista.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-gestion/src/app/reportes/reportes-lista.ts) | Componente standalone de Angular: tarjetas métricas, tabla ejecutiva y botón de descarga directa de PDF. |
+| [`src/app/gestion/gestion.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-gestion/src/app/gestion/gestion.ts) | Pestaña "Reportes" activada como enlace navegable dentro del layout principal. |
+| [`src/app/rutas.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-gestion/src/app/rutas.ts) | Configuración de enrutamiento federado con carga perezosa (`reportes`). |
 
 ---
 
-## 4. Preservación del Sistema de Diseño (Blanco y Lila)
+## 4. Guía Detallada de Pruebas y Validación (Para el Usuario)
 
-Para que ningún componente nuevo rompa la estética del Shell ni de los remotos, se respetan las variables CSS ya estandarizadas en `mfe-pos/src/estilos.ts` y `mfe-gestion/src/app/gestion/gestion.ts`:
+A continuación se detalla cómo ejecutar tanto las pruebas automáticas como las pruebas manuales en navegador.
 
-```css
-:host, .pos {
-  --lila-50: #f7f4ff;
-  --lila-100: #efe9ff;
-  --lila-200: #ddd2fe;
-  --lila-300: #c4b0fb;
-  --lila-500: #8b5cf6;
-  --lila-600: #7c3aed;
-  --lila-700: #6a2fd0;
-  --tinta: #241a38;
-  --gris: #6c6880;
-  --gris-claro: #9a96ab;
-  --borde: #ebe7f4;
-  --fondo: #faf9fd;
-  --verde: #12805c;
-  --verde-fondo: #e9f8f1;
-  --rojo: #c0264b;
-  --rojo-fondo: #fdecf0;
-  --radio: 14px;
-  --sombra: 0 1px 2px rgba(36,26,56,.04), 0 8px 24px -12px rgba(76,29,149,.18);
-  --degradado: linear-gradient(135deg, var(--lila-500), var(--lila-700));
-}
+### 4.1. Verificación Automática (Pruebas Unitarias y Compilación)
+
+Abre una terminal en la raíz del proyecto y ejecuta los siguientes comandos:
+
+#### 1. Pruebas Unitarias del POS (`mfe-pos`)
+```powershell
+npm --prefix mfe-pos test
 ```
+* **Qué valida:**
+  - `guarda una venta en la cola offline con UUID local`: crea el registro en IndexedDB con estado `PENDIENTE`.
+  - `elimina de la cola las ventas confirmadas por el backend`: envía lote mock a `/sync` y verifica que las ventas con `OK` se borran.
+  - `conserva en la cola y marca con motivo de error las ventas rechazadas`: simula rechazo `SIN_STOCK` y verifica que la venta permanece con alerta.
+  - `obtiene el conteo reactivo de ventas pendientes`: verifica la función `contarVentasOffline`.
+* **Resultado esperado:** `4 passed (4)` en ~1 segundo.
 
-* **Botones primarios:** `--degradado` con texto blanco, radio de 11px y sombra de elevación lila.
-* **Botones secundarios / acciones neutras:** Fondo blanco, borde `--borde` y texto `--tinta`.
-* **Tarjetas:** Fondo blanco, radio 16px y sombra suave `--sombra`.
-* **Badges y chips:** Píldoras redondeadas con fondo `--lila-100` y texto `--lila-700`.
+#### 2. Compilación del POS (`mfe-pos`)
+```powershell
+npm --prefix mfe-pos run build
+```
+* **Resultado esperado:** Generación de `dist/pos-element.js` y `dist/sw.js` (PWA Service Worker) con código 0.
+
+#### 3. Pruebas Unitarias de Gestión (`ms-gestion`)
+```powershell
+npm --prefix ms-gestion test
+```
+* **Qué valida:**
+  - `ExportarReporte (CU07)`:
+    - Genera una URL válida con el formato `/reportes/descargar/:id?formato=pdf`.
+    - Genera un Buffer en memoria no vacío con la firma binaria mágica `%PDF-`.
+    - Lanza la excepción `ReporteNoEncontrado` ante un ID inexistente.
+  - Suites existentes de `Proveedores` (CU05) y `Contabilidad`.
+* **Resultado esperado:** `16 passed (16)` en ~1 segundo.
+
+#### 4. Compilación del Backend (`ms-gestion`)
+```powershell
+npm --prefix ms-gestion run build
+```
+* **Resultado esperado:** `nest build` finaliza sin errores de TypeScript.
+
+#### 5. Compilación del Frontend Angular (`mfe-gestion`)
+```powershell
+npm --prefix mfe-gestion run build
+```
+* **Resultado esperado:** Empaquetado de artefactos federados (`dist/mfe-gestion`) incluyendo el lazy chunk `reportes-lista`.
 
 ---
 
-## 5. Estrategia de Pruebas Unitarias
+### 4.2. Prueba Automatizada de Integración de Endpoints (E2E Script)
 
-Siguiendo el estándar de calidad y el comando `npm test`:
+Se preparó un script de verificación en `scratch/probar-sistema.mjs` que arranca temporalmente el microservicio `ms-gestion` y prueba sus rutas HTTP reales.
 
-1. **`ms-gestion` (Vitest):**
-   - Archivo: `src/reportes/aplicacion/exportar-reporte.spec.ts`.
-   - Pruebas:
-     - Generación correcta del buffer PDF para un reporte existente.
-     - Lanzamiento de error de dominio si el reporte no existe (`ReporteNoEncontrado`).
-     - Inclusión obligatoria de las líneas de producto y el total recaudado en la definición del documento.
-   - Ejecución: `npm test` debe mantener 100% de tests en verde sin requerir base de datos MongoDB levantada (usando repositorio mock).
-
-2. **`mfe-pos` (Vitest):**
-   - Archivo: `src/api.test.ts` y nuevo `src/db/pos-db.test.ts`.
-   - Pruebas:
-     - Inserción y recuperación de venta en Dexie.js.
-     - Lógica de depuración de lote: eliminación de `OK` y `DUPLICADO`, persistencia de `ERROR`.
+Para ejecutarlo:
+```powershell
+node scratch/probar-sistema.mjs
+```
+* **Qué verifica en vivo:**
+  - `GET /health` responde 200/503 con diagnóstico de componentes.
+  - `GET /reportes/descargar/rep-seed-01?formato=pdf` responde HTTP 200, cabecera `Content-Type: application/pdf`, `Content-Disposition: attachment; filename="reporte-rep-seed-01.pdf"`, y buffer binario con firma `%PDF-`.
+  - `GET /reportes/descargar/no-existe?formato=pdf` responde HTTP 404 con JSON descriptivo.
+  - `POST /graphql` expone los tipos de esquema `Reporte` y `ArchivoReporte`.
 
 ---
 
-## 6. Plan de Ejecución Paso a Paso
+### 4.3. Escenarios de Prueba Manual en Navegador
 
-```mermaid
-gantt
-    title Plan de Ejecución Semana 3 - Dev 2
-    dateFormat  YYYY-MM-DD
-    section Fase 1: Offline POS (CU03)
-    Instalación Dexie y BD Local         :p1, 2026-11-01, 1d
-    Servicio de Sincronización y Sync API:p2, after p1, 1d
-    UI de Estado de Red y Modal Cola     :p3, after p2, 1d
-    section Fase 2: ms-gestion Reportes (CU07)
-    Instalación pdfmake y Bounded Context:p4, 2026-11-02, 1d
-    Caso de Uso y Tests Unitarios Vitest :p5, after p4, 1d
-    Endpoint REST y Resolver GraphQL     :p6, after p5, 1d
-    section Fase 3: MFE Gestión Reportes (CU07)
-    Pantalla Reportes y Botones Exportar :p7, 2026-11-03, 1d
-    section Fase 4: Cámara POS (CU04)
-    Modal WebRTC y Selector Inferencia   :p8, 2026-11-04, 1d
-    section Fase 5: Verificación
-    Ejecución Guion Pruebas y CI/CD      :p9, after p8, 1d
-```
+#### Escenario 1: Probar Venta Offline y Sincronización en el POS (`mfe-pos`)
+1. Inicia el microfrontend del POS:
+   ```powershell
+   npm --prefix mfe-pos run dev
+   ```
+2. Abre en el navegador `http://localhost:5173` (o a través del Shell en `http://localhost/pos`).
+3. Agrega productos al carrito (ej. Cerveza Paceña, Vino Kohlberg).
+4. **Simular corte de conexión**: Abre las DevTools del navegador (F12) → pestaña **Network** (Red) → cambia el selector de velocidad a **Offline**.
+5. Observa cómo el badge superior del POS cambia automáticamente a color rojo: **`🔴 Sin red (Modo offline)`**.
+6. Observa que el botón de pago principal cambia a **`Cobrar Offline`**.
+7. Haz clic en **Cobrar Offline**:
+   - Aparece la confirmación: *"Venta guardada en la cola offline local"*.
+   - El carrito se reinicia para seguir atendiendo.
+   - Aparece un badge flotante lila junto al encabezado: **`1 venta pendiente en cola`**.
+8. Haz clic sobre el badge **"1 venta pendiente en cola"**:
+   - Se abre el modal `ColaOfflineModal` mostrando el ticket guardado en IndexedDB con fecha, total y estado `PENDIENTE`.
+9. **Simular restablecimiento de conexión**: En DevTools cambia Network de nuevo a **Online**.
+10. El badge de red vuelve a **`🟢 En línea`**. Haz clic en el botón **"Sincronizar ahora"** dentro del modal:
+    - Se procesa el lote contra `/api/ventas/ventas/sync`.
+    - Las ventas exitosas se purgan automáticamente de IndexedDB y el contador de cola regresa a 0.
 
-### Lista Detallada de Tareas:
+#### Escenario 2: Probar Reconocimiento por Cámara en el POS (`mfe-pos`)
+1. En la pantalla del POS, haz clic en el botón secundario **`📷 Escanear cámara`** (junto al buscador de productos).
+2. Se abre el modal `CamaraModal`:
+   - Si tienes cámara web y otorgas permisos, se visualiza el flujo de video en vivo con la retícula y el láser de barrido animado.
+   - En la parte inferior se muestran los chips de prueba rápida: `CER-001`, `VIN-001`, `SIN-003`, `RON-002`, `WHI-003`.
+3. Haz clic sobre el chip **`CER-001`**:
+   - El modal se cierra automáticamente.
+   - El producto "Cerveza Paceña 620 ml" se agrega de inmediato al carrito de compras.
 
-#### **Fase 1: Cola Offline e Idempotencia en MFE POS (CU03)**
-1. Instalar `dexie` en `mfe-pos`.
-2. Crear `mfe-pos/src/db/pos-db.ts`:
-   - Tabla `ventasOffline`: `id, operationId, items, pago, fechaLocal, estadoSync, errorMotivo`.
-   - Tabla `catalogoCache`: `codigo, nombre, tipo, precio, marca`.
-3. Crear `mfe-pos/src/services/sincronizacion.ts`:
-   - Función `guardarVentaLocal(items, metodo, operationId)`.
-   - Función `sincronizarLote()` que llama a `POST /api/ventas/ventas/sync`.
-4. Integrar en `mfe-pos/src/Pos.tsx`:
-   - Detección de conectividad con `navigator.onLine` y eventos de ventana.
-   - Botón condicional: "Cobrar Bs X" (online) vs "Cobrar Offline Bs X" (offline).
-   - Modal de visualización de cola offline con los estilos lila/blanco.
-5. Ejecutar `npm test` en `mfe-pos`.
+#### Escenario 3: Probar Pestaña de Reportes y Descarga de PDF (`mfe-gestion`)
+1. Inicia el frontend de gestión:
+   ```powershell
+   npm --prefix mfe-gestion start
+   ```
+2. Accede a `http://localhost:4201` (o mediante el Shell en `http://localhost/gestion`).
+3. Observa la barra superior de pestañas: la pestaña **Reportes** ahora está completamente activa y habilitada.
+4. Haz clic en **Reportes**:
+   - Se presentan las 3 tarjetas métricas superiores (Total de reportes, Automatización activa a las 23:00, formatos PDF/XLSX).
+   - Se muestra la tabla con el histórico de reportes generados y el resumen ejecutivo de ventas por producto.
+5. Haz clic en el botón **`📄 Descargar PDF`** de cualquiera de los reportes:
+   - El sistema invoca la mutación GraphQL `exportarReporte`.
+   - Se abre en una pestaña nueva el PDF generado en memoria con la identidad visual corporativa (encabezado lila, tabla con filas intercaladas, total y firma institucional).
 
-#### **Fase 2: Bounded Context de Reportes en ms-gestion (CU07)**
-1. Instalar `pdfmake` y `@types/pdfmake` en `ms-gestion`.
-2. Crear estructura en `ms-gestion/src/reportes/`:
-   - `dominio/reporte.ts`: Entidad de negocio.
-   - `dominio/reporte.repository.ts`: Interfaz del puerto secundario.
-   - `aplicacion/exportar-reporte-pdf.ts`: Motor de generación PDF.
-   - `aplicacion/exportar-reporte.spec.ts`: Pruebas unitarias completas.
-   - `infraestructura/reporte.mongo-repository.ts`: Adaptador de persistencia.
-   - `infraestructura/reporte-descarga.controller.ts`: Endpoint HTTP `GET /reportes/descargar/:id`.
-   - `interfaces/reporte.resolver.ts`: Resolver GraphQL para `exportarReporte`.
-   - `reportes.module.ts`: Ensamblado de providers y exportación.
-3. Registrar módulo en `app.module.ts` y validar con `npm test` y `npm run build`.
-
-#### **Fase 3: Vista de Reportes en MFE Gestión (CU07)**
-1. Crear `mfe-gestion/src/app/reportes/reportes-lista.ts`:
-   - Tarjetas de resumen métrico.
-   - Tabla con historial de reportes.
-   - Botón "Descargar PDF" que consume el endpoint de `ms-gestion`.
-2. Conectar la ruta `reportes` en `mfe-gestion/src/app/gestion/gestion.ts` eliminando el badge `"Próximamente"`.
-3. Validar con `npm run build` en `mfe-gestion`.
-
-#### **Fase 4: Componente de Cámara en MFE POS (CU04)**
-1. Crear `mfe-pos/src/CamaraModal.tsx`:
-   - Flujo de video WebRTC con `<video>` y visor con mira de escaneo.
-   - Captura de fotograma y botón de clasificación contra `/api/ia/imagen/clasificar`.
-   - Selector asistido con los 5 productos de prueba del modelo (`CER-001`, `VIN-001`, `SIN-003`, `RON-002`, `WHI-003`).
-2. Añadir botón con ícono de cámara en la barra de búsqueda de `Pos.tsx`.
-
-#### **Fase 5: Verificación Integral del Guion de Pruebas**
-1. Ejecutar las pruebas unitarias automáticas:
-   - `ms-gestion`: `npm test`
-   - `mfe-pos`: `npm test`
-   - `mfe-gestion`: `npx ng test --watch=false`
-2. Verificar manualmente los pasos 5 (sincronización offline), 7 (proveedores), 9 (reporte diario) y 12 (POS PWA) de `docs/guion-pruebas.md`.
-
+#### Escenario 4: Probar Flujo de n8n para Descarga Diaria (CU07)
+1. Con `ms-gestion` ejecutándose en el puerto 3000, simula la llamada que realiza el nodo HTTP de n8n:
+   ```powershell
+   Invoke-RestMethod -Uri "http://localhost:3000/reportes/descargar/rep-seed-01?formato=pdf" -OutFile "reporte-descargado.pdf"
+   ```
+2. Abre el archivo generado `reporte-descargado.pdf`. Verifica que se visualiza el documento completo con el resumen ejecutivo y la tabla de productos.
