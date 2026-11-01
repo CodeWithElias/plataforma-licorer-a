@@ -6,6 +6,7 @@
 # Dependencias y builds
 node_modules/
 dist/
+*.tsbuildinfo
 target/
 vendor/
 build/
