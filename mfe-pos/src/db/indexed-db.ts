@@ -182,3 +182,4 @@ export async function obtenerCatalogoLocal(): Promise<Producto[]> {
     req.onerror = () => reject(req.error);
   });
 }
+

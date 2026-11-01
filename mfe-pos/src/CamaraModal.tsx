@@ -119,3 +119,4 @@ export function CamaraModal({ abierto, onCerrar, productos, onDetectar }: Camara
     </div>
   );
 }
+

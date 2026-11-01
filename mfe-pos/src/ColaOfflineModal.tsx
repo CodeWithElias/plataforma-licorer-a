@@ -138,3 +138,4 @@ export function ColaOfflineModal({ abierto, onCerrar, onActualizado }: ColaOffli
     </div>
   );
 }
+

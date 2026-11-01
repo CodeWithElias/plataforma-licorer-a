@@ -15,3 +15,4 @@ export interface ReporteRepository {
   guardar(reporte: Reporte): Promise<Reporte>;
   actualizarArchivos(id: string, archivos: { formato: FormatoReporte; ruta: string }[]): Promise<void>;
 }
+

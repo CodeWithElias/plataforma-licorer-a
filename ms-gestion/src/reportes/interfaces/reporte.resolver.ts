@@ -47,3 +47,4 @@ function aGraphql(r: Reporte) {
     fecha: r.fecha instanceof Date ? r.fecha.toISOString() : String(r.fecha),
   };
 }
+

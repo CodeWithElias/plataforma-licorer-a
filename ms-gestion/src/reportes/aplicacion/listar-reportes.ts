@@ -13,3 +13,4 @@ export class ListarReportes {
     return this.repo.listar();
   }
 }
+

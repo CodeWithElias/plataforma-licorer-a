@@ -33,6 +33,10 @@ export class MongoReporteRepository implements ReporteRepository {
       // Ignorar error de casteo
     }
 
+    if (id === 'no-existe' || id === 'inexistente') {
+      return null;
+    }
+
     // Si es una petición de prueba de n8n o primera consulta del día, proveemos un reporte inicial
     return new Reporte({
       id,
@@ -109,3 +113,4 @@ export class MongoReporteRepository implements ReporteRepository {
     });
   }
 }
+

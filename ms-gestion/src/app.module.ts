@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
@@ -11,12 +12,16 @@ import { ContabilidadModule } from './contabilidad/contabilidad.module.js';
 import { ProveedoresModule } from './proveedores/proveedores.module.js';
 import { ReportesModule } from './reportes/reportes.module.js';
 
+const rutaEsquema = existsSync(join(process.cwd(), 'schema.graphql'))
+  ? join(process.cwd(), 'schema.graphql')
+  : join(process.cwd(), 'ms-gestion', 'schema.graphql');
+
 @Module({
   imports: [
-    // Esquema primero: el contrato es schema.graphql (raíz del proyecto)
+    // Esquema primero: el contrato es schema.graphql (raíz del proyecto o subcarpeta)
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
-      typePaths: [join(process.cwd(), 'schema.graphql')],
+      typePaths: [rutaEsquema],
       path: '/graphql',
       context: ({ req }: { req: unknown }) => ({ req }),   // el guard lee el token de req
     }),
