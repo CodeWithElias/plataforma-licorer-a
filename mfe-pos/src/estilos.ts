@@ -169,9 +169,9 @@ export const estilos = `
 .pos-btn-primario { flex: 1; height: 42px; padding: 0 1rem; border: 0; border-radius: 10px;
   background: var(--degradado); color: #fff; font-weight: 600; cursor: pointer; }
 .pos-btn-primario[disabled] { opacity: .45; cursor: default; }
-.pos-btn-secundario { display: inline-flex; align-items: center; justify-content: center; flex: 1; height: 42px;
+.pos-modal .pos-btn-secundario { display: inline-flex; align-items: center; justify-content: center; flex: 1; height: 42px;
   padding: 0 1rem; border: 1px solid var(--lila-300); border-radius: 10px; background: var(--lila-50);
   color: var(--lila-700); font-weight: 600; font-size: .9rem; cursor: pointer; }
-.pos-btn-secundario:hover { background: var(--lila-100); }
+.pos-modal .pos-btn-secundario:hover { background: var(--lila-100); }
 
 `

@@ -22,7 +22,7 @@ http() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 KC=http://localhost/auth/realms/licoreria
 
 echo "1. Contenedores"
-for s in dynamodb keycloak nginx n8n \
+for s in dynamodb keycloak nginx n8n ollama \
          ms-ventas ms-inventario ms-gestion ms-ia web-shell mfe-gestion mfe-pos; do
   corriendo "$s" && pasa "$s corriendo" || falla "$s no está corriendo (docker compose logs $s)"
 done
@@ -120,6 +120,18 @@ activos=$(docker compose exec -T n8n n8n list:workflow --active=true 2>/dev/null
 for w in cu06Reabastecer1 cu07ReporteDiar1; do
   echo "$activos" | grep -q "$w" && pasa "n8n: workflow $w activo" || falla "n8n: el workflow $w no está activo (docker compose logs n8n)"
 done
+
+echo "4d. LLM de los agentes (Ollama)"
+MODELO=$(leer ms-ia/.env OLLAMA_MODEL)
+if curl -s http://localhost:11434/api/tags | grep -q "\"name\":\"$MODELO\""; then
+  pasa "Ollama tiene el modelo $MODELO"
+elif corriendo ollama-init; then
+  pasa "Ollama descargando $MODELO (docker compose logs -f ollama-init); mientras tanto los agentes usan su plan B"
+else
+  falla "Ollama no tiene el modelo $MODELO (docker compose logs ollama-init)"
+fi
+curl -s http://localhost/api/ia/health | grep -q '"motor":"langgraph"' \
+  && pasa "agentes de ms-ia corren con LangGraph" || falla "ms-ia no tiene LangGraph instalado (docker compose up -d --build ms-ia)"
 
 echo "5. Frontends"
 curl -s http://localhost/ | grep -q '<app-root' && pasa "Shell en http://localhost/" || falla "el Shell no responde en /"

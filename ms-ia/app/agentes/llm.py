@@ -7,9 +7,12 @@ import urllib.error
 import urllib.request
 
 
-def consultar_ollama(prompt: str, sistema: str = "", timeout: float = 6.0) -> str | None:
+def consultar_ollama(prompt: str, sistema: str = "", timeout: float | None = None) -> str | None:
     """Envía un prompt al servidor local de Ollama (OLLAMA_URL).
-    Si Ollama está apagado o no tiene modelo descargado, devuelve None para activar el Plan B determinista."""
+    Si Ollama está apagado, no tiene modelo descargado o tarda más de OLLAMA_TIMEOUT segundos, devuelve None para
+    activar el Plan B determinista. La primera respuesta tarda más porque Ollama carga el modelo en memoria."""
+    if timeout is None:
+        timeout = float(os.getenv("OLLAMA_TIMEOUT", "60"))
     if os.getenv("DESACTIVAR_OLLAMA") == "1":
         return None
 
@@ -43,6 +46,16 @@ def consultar_ollama(prompt: str, sistema: str = "", timeout: float = 6.0) -> st
             return texto if texto else None
     except Exception:
         return None
+
+
+def motor_de_grafos() -> str:
+    """'langgraph' si la librería está instalada (requirements.txt); si no, el motor secuencial de este módulo."""
+    try:
+        import langgraph.graph  # noqa: F401  # type: ignore
+
+        return "langgraph"
+    except ImportError:
+        return "secuencial (sin langgraph)"
 
 
 class _GrafoCompiladoFallback:

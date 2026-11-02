@@ -7,3 +7,5 @@ numpy>=1.26
 opencv-python-headless>=4.10.0
 # Inferencia del clasificador (runtime ligero de TFLite)
 ai-edge-litert==2.3.0
+# Agentes de CU06 y CU07 (grafos de estados); el LLM es Ollama, por HTTP
+langgraph>=1.0,<2

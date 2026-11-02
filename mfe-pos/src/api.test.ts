@@ -1,4 +1,3 @@
-
 import { describe, expect, it } from 'vitest';
 import { mensajeDeVenta, totalCarrito, type Producto } from './api';
 
@@ -46,8 +45,6 @@ describe('POS', () => {
   it('informa correctamente del modo offline cuando no hay conexión', () => {
     expect(mensajeDeVenta({ estado: 0, codigo: 'SIN_CONEXION', mensaje: 'x' })).toContain('modo Offline');
   });
-});
-
 
   it('reconoce los 5 productos en el navegador sin conexión con confianza >= 80 % (CU04 / R06)', () => {
     const casos: { color: [number, number, number]; etiqueta: string; codigo: string }[] = [

@@ -8,13 +8,11 @@ import {
   totalCarrito,
   vender,
 } from './api';
-import { CamaraModal } from './CamaraModal';
 import { ColaOfflineModal } from './ColaOfflineModal';
 import { contarVentasOffline, guardarVentaOffline } from './db/indexed-db';
 import { estilos } from './estilos';
-import { type PrediccionLocal } from './clasificadorTfjs'
-import EscanerCamara from './EscanerCamara'
-
+import { type PrediccionLocal } from './clasificadorTfjs';
+import EscanerCamara from './EscanerCamara';
 
 type Aviso = { tipo: 'ok' | 'error'; titulo: string; texto: string } | null;
 
@@ -53,15 +51,11 @@ export default function Pos() {
   const [enLinea, setEnLinea] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [colaCount, setColaCount] = useState(0);
   const [modalColaAbierto, setModalColaAbierto] = useState(false);
-  const [modalCamaraAbierto, setModalCamaraAbierto] = useState(false);
+  const [escanerAbierto, setEscanerAbierto] = useState(false);
 
   const refrescarCola = () => {
     contarVentasOffline().then(setColaCount).catch(() => {});
   };
-
- 
-  const [escanerAbierto, setEscanerAbierto] = useState(false)
-
 
   useEffect(() => {
     const handleOnline = () => {
@@ -193,14 +187,15 @@ export default function Pos() {
               {colaCount > 0 && <span className="pos-contador-cola">{colaCount}</span>}
             </button>
 
-            {/* Botón Escáner Cámara */}
+            {/* Escáner con el clasificador local de TF.js (CU04) */}
             <button
               type="button"
-              className="pos-btn-secundario"
-              onClick={() => setModalCamaraAbierto(true)}
-              title="Escanear producto con cámara / IA (CU04)"
+              className="pos-btn-camara"
+              onClick={() => setEscanerAbierto(true)}
+              title="Reconocer el producto con la cámara (IA en el navegador, CU04)"
             >
-              <span>📷 Escanear</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" /><circle cx="12" cy="13" r="3.5" /></svg>
+              Escanear cámara (IA)
             </button>
 
             {/* Buscador */}
@@ -215,16 +210,6 @@ export default function Pos() {
                 onChange={(e) => setBusqueda(e.target.value)}
               />
             </label>
-            
-          <div className="pos-herramientas">
-            <label className="pos-buscar">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-              <input placeholder="Buscar por código, nombre o marca" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
-            </label>
-            <button type="button" className="pos-btn-camara" onClick={() => setEscanerAbierto(true)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" /><circle cx="12" cy="13" r="3.5" /></svg>
-              Escanear cámara (IA)
-            </button>
           </div>
         </header>
 
@@ -362,14 +347,7 @@ export default function Pos() {
         onActualizado={refrescarCola}
       />
 
-      {/* Modal Cámara IA (CU04) */}
-      <CamaraModal
-        abierto={modalCamaraAbierto}
-        onCerrar={() => setModalCamaraAbierto(false)}
-        productos={productos}
-        onDetectar={(prod) => cambiarCantidad(prod, 1)}
-      />
-
+      {/* Escáner de cámara con IA local (CU04) */}
       {escanerAbierto && (
         <EscanerCamara
           productos={productos}

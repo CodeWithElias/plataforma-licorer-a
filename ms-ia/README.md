@@ -15,9 +15,14 @@ Microservicio de inteligencia artificial de la Plataforma Licorería: clasificad
 Desde la raíz del monorepo:
 
 ```sh
-docker compose up -d --build ms-ia
-docker compose --profile llm up -d ollama     # LLM local (imagen grande), solo cuando se usen los agentes
+docker compose up -d --build ms-ia     # levanta también ollama y ollama-init
 ```
+
+**LLM de los agentes (Ollama).** El compose levanta `ollama` (CPU, puerto 11434) y `ollama-init`, que descarga el modelo
+`OLLAMA_MODEL` de `.env` (por defecto `qwen2.5:3b`, ~2 GB) la primera vez y se apaga. Mientras se descarga, o si Ollama está
+caído, los agentes responden igual con su plan B sin LLM (texto armado con reglas). Para seguir la descarga:
+`docker compose logs -f ollama-init`. Para ver que ya está: `GET /health` → `components.ollama.modelos` incluye el modelo.
+Para cambiar de modelo, edita `OLLAMA_MODEL` y vuelve a correr `docker compose up -d ollama-init ms-ia`.
 
 ## Correrlo solo (desarrollo)
 

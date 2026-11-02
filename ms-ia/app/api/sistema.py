@@ -4,6 +4,7 @@ import urllib.request
 
 from fastapi import APIRouter, Depends
 
+from app.agentes.llm import motor_de_grafos
 from app.seguridad import Usuario, usuario_actual
 
 router = APIRouter(tags=["Sistema"])
@@ -21,7 +22,14 @@ def _estado_ollama() -> dict:
 
 @router.get("/health", summary="Estado del servicio y de Ollama")
 def health():
-    return {"status": "UP", "servicio": "ms-ia", "components": {"ollama": _estado_ollama()}}
+    return {
+        "status": "UP",
+        "servicio": "ms-ia",
+        "components": {
+            "ollama": _estado_ollama(),
+            "agentes": {"motor": motor_de_grafos(), "modelo": os.getenv("OLLAMA_MODEL") or "el primero disponible"},
+        },
+    }
 
 
 @router.get("/yo", summary="Usuario del token (id, usuario y roles)")

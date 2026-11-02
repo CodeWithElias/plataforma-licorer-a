@@ -153,12 +153,26 @@ services:
       VENTAS_URL: http://ms-ventas:8080
       INVENTARIO_URL: http://ms-inventario:8001
       GESTION_URL: http://ms-gestion:3000/graphql
-    depends_on: [keycloak]
+    # No espera a que termine la descarga del modelo: mientras tanto los agentes usan su plan B sin LLM
+    depends_on: [keycloak, ollama]
 
+  # LLM local de los agentes de ms-ia (CU06 y CU07). Corre en CPU; el modelo queda en el volumen ollama-data
   ollama:
-    profiles: [llm]
     image: ollama/ollama
+    ports: ["11434:11434"]
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m              # el modelo queda cargado en memoria 30 min después de cada uso
     volumes: ["ollama-data:/root/.ollama"]
+
+  # Descarga el modelo OLLAMA_MODEL de ms-ia/.env y se apaga. Solo descarga la primera vez (~2 GB);
+  # en los arranques siguientes ve que ya está en el volumen y termina en segundos.
+  ollama-init:
+    image: ollama/ollama
+    env_file: ./ms-ia/.env
+    environment:
+      OLLAMA_HOST: http://ollama:11434    # el comando ollama actúa como cliente del contenedor ollama
+    entrypoint: ["sh", "-c", "until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull \"$$OLLAMA_MODEL\""]
+    depends_on: [ollama]
 
 volumes:
   n8n-data: {}

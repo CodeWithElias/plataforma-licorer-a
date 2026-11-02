@@ -60,7 +60,9 @@ El token dura 5 minutos: si una petición responde **401**, pide uno nuevo.
   ```sh
   docker compose up -d --build
   ```
-  Keycloak tarda 1 a 2 minutos en estar listo (su base está en Supabase).
+  Keycloak tarda 1 a 2 minutos en estar listo (su base está en Supabase). La **primera vez** `ollama-init` descarga el modelo
+  del LLM (`qwen2.5:3b`, ~2 GB): sigue la descarga con `docker compose logs -f ollama-init`. El resto del sistema funciona
+  mientras tanto (los agentes usan su plan B sin LLM).
 - [ ] **0.2 Dejar el stock como al inicio** (las pruebas anteriores lo cambian)
   ```sh
   docker compose exec ms-inventario php artisan inventario:seed --forzar

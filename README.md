@@ -110,6 +110,7 @@ Cada servicio tiene **un puerto propio**, el mismo dentro y fuera de Docker. La 
 | ms-ia | 8002 | http://localhost:8002/health · http://localhost:8002/docs | http://localhost/api/ia/… |
 | Keycloak | – | – | http://localhost/auth/admin (admin: `KC_BOOTSTRAP_ADMIN_*` de `infra/.env`) |
 | n8n | 5678 | http://localhost:5678 | – |
+| Ollama (LLM de ms-ia) | 11434 | http://localhost:11434/api/tags (modelos descargados) | – |
 | DynamoDB Local | 8000 | NoSQL Workbench: credenciales de `ms-inventario/.env`, región `us-east-1` | – |
 | PostgreSQL ventas | – | DBeaver: Supabase con los datos de `ms-ventas/.env` (SSL obligatorio) | – |
 | MongoDB gestión | – | Compass: `MONGO_URL` de `ms-gestion/.env` | – |
