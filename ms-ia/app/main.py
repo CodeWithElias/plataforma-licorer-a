@@ -2,7 +2,7 @@ import os
 
 from fastapi import FastAPI
 
-from app.api import imagen, modelos, sistema
+from app.api import agentes_api, imagen, mcp_api, modelos, sistema, video
 from app.errores import registrar_manejadores
 
 app = FastAPI(
@@ -32,4 +32,7 @@ app.add_middleware(PrefijoDelGateway)
 registrar_manejadores(app)
 app.include_router(sistema.router)
 app.include_router(imagen.router)
+app.include_router(video.router)
 app.include_router(modelos.router)
+app.include_router(mcp_api.router)
+app.include_router(agentes_api.router)

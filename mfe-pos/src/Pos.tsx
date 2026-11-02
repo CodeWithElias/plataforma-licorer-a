@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { type ItemCarrito, listarProductos, mensajeDeVenta, type MetodoPago, type Producto, totalCarrito, vender } from './api'
+import { type PrediccionLocal } from './clasificadorTfjs'
+import EscanerCamara from './EscanerCamara'
 import { estilos } from './estilos'
 
 type Aviso = { tipo: 'ok' | 'error'; titulo: string; texto: string } | null
@@ -27,6 +29,7 @@ export default function Pos() {
   const [metodo, setMetodo] = useState<MetodoPago>('EFECTIVO')
   const [cobrando, setCobrando] = useState(false)
   const [aviso, setAviso] = useState<Aviso>(null)
+  const [escanerAbierto, setEscanerAbierto] = useState(false)
 
   useEffect(() => {
     listarProductos()
@@ -77,10 +80,16 @@ export default function Pos() {
             <h1>Punto de venta</h1>
             <p>{cargando ? 'Cargando catálogo…' : `${productos.length} productos disponibles`}</p>
           </div>
-          <label className="pos-buscar">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-            <input placeholder="Buscar por código, nombre o marca" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
-          </label>
+          <div className="pos-herramientas">
+            <label className="pos-buscar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <input placeholder="Buscar por código, nombre o marca" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+            </label>
+            <button type="button" className="pos-btn-camara" onClick={() => setEscanerAbierto(true)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" /><circle cx="12" cy="13" r="3.5" /></svg>
+              Escanear cámara (IA)
+            </button>
+          </div>
         </header>
 
         <div className="pos-chips" role="tablist" aria-label="Tipo">
@@ -164,6 +173,20 @@ export default function Pos() {
           )}
         </div>
       </aside>
+      {escanerAbierto && (
+        <EscanerCamara
+          productos={productos}
+          alReconocer={(prod: Producto, pred: PrediccionLocal) => {
+            cambiarCantidad(prod, 1)
+            setAviso({
+              tipo: 'ok',
+              titulo: `Reconocido por IA: ${prod.nombre}`,
+              texto: `Confianza ${(pred.confianza * 100).toFixed(1)} % · Modelo local ${pred.modelo}`,
+            })
+          }}
+          alCerrar={() => setEscanerAbierto(false)}
+        />
+      )}
     </section>
   )
 }

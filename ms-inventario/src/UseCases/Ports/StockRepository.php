@@ -17,5 +17,20 @@ interface StockRepository
      */
     public function buscarVarios(array $codigos): array;
 
-    public function marcarAvisoEnviado(string $productoCodigo): void;
+    /**
+     * Marca el aviso de stock bajo solo si no estaba marcado (escritura condicional).
+     *
+     * @return bool true si lo marcó este proceso: es el único que debe avisar
+     */
+    public function marcarAvisoEnviado(string $productoCodigo): bool;
+
+    /** Borra la marca (el aviso no se pudo entregar y debe reintentarse). */
+    public function quitarAviso(string $productoCodigo): void;
+
+    /**
+     * Guarda el stock repuesto exigiendo que la version no haya cambiado desde que se leyó.
+     *
+     * @throws ConflictoConcurrencia
+     */
+    public function reponer(Stock $leido, Stock $nuevo): void;
 }

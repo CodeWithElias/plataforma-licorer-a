@@ -1,13 +1,13 @@
 # Contrato de ms-ia. Publicado por Nginx en /api/ia. Todo excepto /health exige Authorization: Bearer <token>.
-# Implementado (semana 2): /health, /yo, /imagen/clasificar, /modelos/latest, /modelos/{version}/{archivo}.
-# Semana 3: /video/analizar, /reportes, /agentes/reabastecimiento.
+# Implementado (semana 2 y semana 3): /health, /yo, /imagen/clasificar, /video/analizar, /modelos/latest,
+# /modelos/{version}/{archivo}, /mcp/tools, /mcp/tools/{nombre}, /reportes, /agentes/reabastecimiento.
 # Errores: { codigo, mensaje } — NO_AUTENTICADO (401), SIN_PERMISO (403), DATOS_INVALIDOS (400),
 # MODELO_NO_DISPONIBLE (503, todavía no hay modelo entrenado), ERROR_INTERNO (502, ms-inventario no respondió).
 openapi: 3.0.3
 info:
   title: ms-ia
-  version: 0.2.0
-  description: Clasificación de productos (TensorFlow), agentes LangGraph y servidor MCP.
+  version: 1.0.0
+  description: Clasificación de productos (TensorFlow / TFLite / TF.js), extracción de frames con OpenCV, agentes LangGraph y servidor FastMCP.
 servers:
   - url: http://localhost/api/ia
     description: A través de Nginx
@@ -106,9 +106,43 @@ paths:
       responses:
         "200": { description: El archivo }
         "404": { description: No existe (NO_ENCONTRADO) }
+  /mcp/tools:
+    get:
+      summary: Lista las herramientas MCP registradas para los agentes LangGraph
+      responses:
+        "200":
+          description: Catálogo de herramientas MCP
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  servidor: { type: string, example: "ms-ia-mcp" }
+                  tools:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        nombre: { type: string }
+                        descripcion: { type: string }
+  /mcp/tools/{nombre}:
+    post:
+      summary: Ejecuta una tool MCP reenviando el JWT Bearer del llamador
+      parameters:
+        - { name: nombre, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                argumentos: { type: object }
+      responses:
+        "200":
+          description: Resultado de la tool MCP
   /reportes:
     post:
-      summary: Agente de reportes por lenguaje natural (CU07)
+      summary: Agente de reportes por lenguaje natural con LangGraph + Ollama (CU07)
       requestBody:
         content:
           application/json:
@@ -117,6 +151,8 @@ paths:
               required: [consulta]
               properties:
                 consulta: { type: string, example: "Ventas por producto de esta semana en barras" }
+                desde: { type: string, format: date, nullable: true }
+                hasta: { type: string, format: date, nullable: true }
       responses:
         "200":
           description: Datos para graficar
@@ -129,18 +165,21 @@ paths:
                   datos: { type: array, items: { type: array, items: {} } }
                   tipoGrafico: { type: string, enum: [barras, lineas, torta, tabla] }
                   resumen: { type: string }
+                  reporteId: { type: string, nullable: true }
   /agentes/reabastecimiento:
     post:
-      summary: Agente de reabastecimiento; lo llama n8n con el aviso de stock bajo (CU06)
+      summary: Agente de reabastecimiento con LangGraph + Ollama; lo llama n8n con el aviso de stock bajo (CU06)
       requestBody:
         content:
           application/json:
             schema:
               type: object
+              required: [productoCodigo]
               properties:
-                productoCodigo: { type: string }
-                cantidad: { type: integer }
-                minimo: { type: integer }
+                productoCodigo: { type: string, example: "CER-001" }
+                nombre: { type: string, nullable: true, example: "Cerveza Paceña 620 ml" }
+                cantidad: { type: integer, example: 8 }
+                minimo: { type: integer, example: 20 }
       responses:
         "200":
           description: Resultado del agente
@@ -150,8 +189,9 @@ paths:
                 type: object
                 properties:
                   ordenCreada: { type: boolean }
-                  numero: { type: string }
+                  numero: { type: string, nullable: true }
                   lineas: { type: array, items: { type: object } }
+                  motivo: { type: string, nullable: true }
 components:
   securitySchemes:
     bearer:

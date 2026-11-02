@@ -1,0 +1,324 @@
+{
+  "id": "cu07ReporteDiar1",
+  "name": "CU07 Reporte diario de ventas",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 23 * * *"
+            }
+          ]
+        }
+      },
+      "id": "505948f0-9a7d-5a6f-9336-92fc837181b8",
+      "name": "Todos los días 23:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "reporte-diario",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "ac96b979-72bb-5a01-9409-f70b18a52e16",
+      "name": "Probar ahora",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "80fb3101-c125-52ed-99fc-34dfd2d38997"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Día en Bolivia (UTC-4, sin horario de verano). Para probar otro día: GET /webhook/reporte-diario?dia=AAAA-MM-DD\nconst q = $input.first().json.query ?? {};\nlet dia = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);\nif (/^\\d{4}-\\d{2}-\\d{2}$/.test(q.dia ?? '')) dia = q.dia;\nconst siguiente = new Date(Date.parse(`${dia}T00:00:00Z`) + 86400e3).toISOString().slice(0, 10);\nreturn [{ json: { dia, desde: `${dia}T00:00:00-04:00`, hasta: `${siguiente}T00:00:00-04:00` } }];\n"
+      },
+      "id": "9ae1bf89-702e-551f-8363-98a5127dd0e0",
+      "name": "Rango del día",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.VENTAS_URL }}/ventas",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "desde",
+              "value": "={{ $json.desde }}"
+            },
+            {
+              "name": "hasta",
+              "value": "={{ $json.hasta }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "02422a7d-ccdd-57c0-9fea-f6404e19af66",
+      "name": "Ventas del día (ms-ventas)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        100
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "keycloakN8nCred1",
+          "name": "Keycloak (cliente n8n)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.IA_URL }}/reportes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ consulta: 'Ventas del día ' + $('Rango del día').first().json.dia + ' por producto', desde: $('Rango del día').first().json.desde, hasta: $('Rango del día').first().json.hasta }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "e019dc4c-b122-5b3a-af63-3f50f2a495c9",
+      "name": "Agente de reportes (ms-ia)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "keycloakN8nCred1",
+          "name": "Keycloak (cliente n8n)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GESTION_URL }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: 'mutation Exportar($id: ID!) { exportarReporte(id: $id, formato: PDF) { formato url } }', variables: { id: $json.reporteId ?? $json.id ?? '' } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "2577fb46-bc7d-51e9-bfe6-f5e020856af4",
+      "name": "Exportar PDF (ms-gestion)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "keycloakN8nCred1",
+          "name": "Keycloak (cliente n8n)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.data?.exportarReporte?.url ?? '' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "reporte"
+            }
+          }
+        }
+      },
+      "id": "c3379823-cc90-57e9-a4fc-d61efe225281",
+      "name": "Descargar PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        100
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "keycloakN8nCred1",
+          "name": "Keycloak (cliente n8n)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Plantilla del correo con los colores de la licorería (blanco y lila)\nconst e = (v) => String(v ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' })[c]);\nconst plantilla = (titulo, contenido) => `\n<div style=\"font-family:Segoe UI,Arial,sans-serif;background:#f7f4ff;padding:24px;color:#241a38\">\n  <div style=\"max-width:620px;margin:0 auto;background:#fff;border:1px solid #ebe7f4;border-radius:14px;overflow:hidden\">\n    <div style=\"background:linear-gradient(135deg,#8b5cf6,#6a2fd0);color:#fff;padding:18px 24px;font-size:18px;font-weight:700\">Licorería · ${e(titulo)}</div>\n    <div style=\"padding:20px 24px;font-size:14px;line-height:1.5\">${contenido}</div>\n    <div style=\"padding:12px 24px;background:#faf9fd;color:#6c6880;font-size:12px\">Correo automático de n8n. No responder.</div>\n  </div>\n</div>`;\nconst tabla = (cabeceras, filas) => `<table style=\"border-collapse:collapse;width:100%;font-size:13px\"><tr>${cabeceras.map((c, i) =>\n  `<th style=\"text-align:${i ? 'right' : 'left'};padding:6px 8px;border-bottom:2px solid #ddd2fe;color:#6a2fd0\">${e(c)}</th>`).join('')}</tr>${filas.map((f) =>\n  `<tr>${f.map((v, i) => `<td style=\"text-align:${i ? 'right' : 'left'};padding:6px 8px;border-bottom:1px solid #ebe7f4\">${e(v)}</td>`).join('')}</tr>`).join('')}</table>`;\n\nconst { dia } = $('Rango del día').first().json;\nconst ventas = $('Ventas del día (ms-ventas)').first().json.body ?? [];\n\nconst porProducto = {};\nlet total = 0;\nfor (const v of ventas) {\n  total += Number(v.total);\n  for (const i of v.items ?? []) {\n    const p = (porProducto[i.productoCodigo] ??= { nombre: i.productoNombre, cantidad: 0, monto: 0 });\n    p.cantidad += i.cantidad;\n    p.monto += Number(i.subtotal);\n  }\n}\nconst filas = Object.entries(porProducto)\n  .sort((a, b) => b[1].monto - a[1].monto)\n  .map(([codigo, p]) => [`${p.nombre} (${codigo})`, p.cantidad, p.monto.toFixed(2)]);\n\nconst agente = $('Agente de reportes (ms-ia)').first().json;\nconst pdf = $('Descargar PDF').first();\nconst adjunto = pdf.binary?.reporte;\n\nlet contenido = `<p><b>${ventas.length}</b> ventas completadas el ${e(dia)} por un total de <b>Bs ${total.toFixed(2)}</b>.</p>`;\nif (!agente.error && agente.resumen) {\n  contenido += `<p style=\"background:#f7f4ff;border-radius:10px;padding:10px 12px\">${e(agente.resumen)}</p>`;\n}\ncontenido += filas.length\n  ? tabla(['Producto', 'Unidades', 'Monto (Bs)'], filas)\n  : '<p style=\"color:#6c6880\">No hubo ventas este día.</p>';\ncontenido += adjunto\n  ? '<p>Se adjunta el reporte en PDF.</p>'\n  : '<p style=\"color:#6c6880;font-size:12px\">El PDF no está disponible (ms-ia o ms-gestion no respondió); el detalle sale directo de ms-ventas.</p>';\n\nconst salida = { json: { asunto: `Reporte diario de ventas ${dia}: Bs ${total.toFixed(2)}`, cuerpo: plantilla('Reporte diario', contenido), ventas: ventas.length, total } };\nif (adjunto) salida.binary = { reporte: adjunto };\nreturn [salida];\n"
+      },
+      "id": "92a82d60-4c85-5ba6-8676-2d0db470f55a",
+      "name": "Armar reporte",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.EMAIL_REMITENTE }}",
+        "toEmail": "={{ $env.GERENTE_EMAIL }}",
+        "subject": "={{ $json.asunto }}",
+        "emailFormat": "html",
+        "html": "={{ $json.cuerpo }}",
+        "options": {
+          "attachments": "reporte"
+        }
+      },
+      "id": "2891db93-24ac-5c9f-ae26-ec4558f9381d",
+      "name": "Correo al gerente",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        100
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtpLicoreria001",
+          "name": "SMTP licorería"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Todos los días 23:00": {
+      "main": [
+        [
+          {
+            "node": "Rango del día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Probar ahora": {
+      "main": [
+        [
+          {
+            "node": "Rango del día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rango del día": {
+      "main": [
+        [
+          {
+            "node": "Ventas del día (ms-ventas)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ventas del día (ms-ventas)": {
+      "main": [
+        [
+          {
+            "node": "Agente de reportes (ms-ia)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente de reportes (ms-ia)": {
+      "main": [
+        [
+          {
+            "node": "Exportar PDF (ms-gestion)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exportar PDF (ms-gestion)": {
+      "main": [
+        [
+          {
+            "node": "Descargar PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar PDF": {
+      "main": [
+        [
+          {
+            "node": "Armar reporte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar reporte": {
+      "main": [
+        [
+          {
+            "node": "Correo al gerente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/La_Paz"
+  },
+  "pinData": {},
+  "active": true
+}

@@ -87,10 +87,13 @@ services:
       keycloak: { condition: service_started }
 
   n8n:
-    image: n8nio/n8n
+    image: n8nio/n8n:2.44.5
     env_file: ./n8n/.env
     ports: ["5678:5678"]
-    volumes: ["n8n-data:/home/node/.n8n", "./n8n/workflows:/workflows"]
+    # Al arrancar crea las credenciales (Keycloak y Gmail) desde n8n/.env, importa y activa n8n/workflows/*.json
+    entrypoint: ["tini", "--", "/bin/sh", "/licoreria/iniciar.sh"]
+    volumes: ["n8n-data:/home/node/.n8n", "./n8n:/licoreria:ro"]
+    depends_on: [keycloak]
 
   # ---------- Dev 2 ----------
   ms-gestion:

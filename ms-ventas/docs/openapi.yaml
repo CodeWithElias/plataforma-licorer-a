@@ -63,7 +63,8 @@ paths:
         el cliente solo envía códigos y cantidades. El cajero sale del `sub` del token.
 
         Si el `Idempotency-Key` ya se usó, devuelve exactamente la misma respuesta (mismo código y cuerpo)
-        sin volver a ejecutar la Saga.
+        sin volver a ejecutar la Saga, con el encabezado `Idempotent-Replayed: true`. Se guardan las respuestas
+        201 y los 409/502 de una venta ya creada; un 400 o 404 no se guarda y la clave se puede reintentar.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -87,11 +88,17 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
               example: { codigo: PRODUCTO_NO_ENCONTRADO, mensaje: "No existe el producto CER-999" }
         "409":
-          description: No hay stock suficiente; la venta queda CANCELADA y no se reservó nada
+          description: No hay stock suficiente (la venta queda CANCELADA y no se reservó nada), o la misma Idempotency-Key se está procesando en otro pedido (codigo EN_PROCESO, reintentar)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorVenta" }
               example: { codigo: SIN_STOCK, mensaje: "No hay stock suficiente", ventaId: 8d1c2f7e-93ab-4e0d-8b6a-5f4c3e2d1a90, estado: CANCELADA }
+        "422":
+          description: El Idempotency-Key ya se usó en otro endpoint (POST /ventas/sync)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { codigo: IDEMPOTENCY_KEY_REUSADA, mensaje: "Ese Idempotency-Key ya se usó en POST /ventas/sync" }
         "502":
           description: Falló un paso posterior (p. ej. ms-gestion caído); se compensó y la venta queda CANCELADA
           content:
@@ -165,7 +172,14 @@ paths:
         El `operationId` de cada venta hace de Idempotency-Key: si ya se procesó, responde DUPLICADO sin
         ejecutar nada. La respuesta siempre es 200 y trae el resultado de cada ítem en el mismo orden;
         el POS borra de su cola los OK y DUPLICADO, y muestra los ERROR.
-        Las ventas se guardan con `origen = OFFLINE`.
+        Las ventas se guardan con `origen = OFFLINE` y con la fecha `fechaLocal` (si viene en el futuro, se usa la hora
+        del servidor). Máximo 50 ventas por lote. El `Idempotency-Key` del lote es opcional: si se envía, un lote
+        repetido devuelve la misma respuesta guardada.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -332,6 +346,8 @@ components:
         resultado: { type: string, enum: [OK, DUPLICADO, ERROR] }
         ventaId: { type: string, format: uuid, description: Presente en OK y DUPLICADO }
         numero: { type: integer, format: int64, description: Presente en OK y DUPLICADO }
+        estado: { type: string, description: Estado de la venta (COMPLETADA o CANCELADA) en OK y DUPLICADO }
+        mensaje: { type: string, description: Detalle legible del ERROR o del DUPLICADO }
         motivo:
           type: string
           description: Presente en ERROR (mismo código que devolvería POST /ventas)

@@ -111,6 +111,47 @@ paths:
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "403": { $ref: "#/components/responses/SinPermiso" }
 
+  /stock/{productoCodigo}/reposiciones:
+    post:
+      tags: [Stock]
+      summary: Registra una entrada de mercadería (CU06)
+      operationId: reponerStock
+      description: |
+        Roles: ALMACEN, GERENTE.
+
+        Suma `cantidad` al stock del producto con bloqueo optimista (reintenta si una venta lo cambió al mismo
+        tiempo). Si el producto vuelve a quedar en o sobre el mínimo, se borra la marca del aviso de stock bajo:
+        la próxima vez que baje, n8n recibe un aviso nuevo.
+      parameters:
+        - name: productoCodigo
+          in: path
+          required: true
+          schema: { type: string, example: CER-001 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cantidad]
+              properties:
+                cantidad: { type: integer, minimum: 1, example: 24 }
+      responses:
+        "200":
+          description: Stock actualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Stock" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: El producto no tiene stock registrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { codigo: PRODUCTO_NO_ENCONTRADO, mensaje: "XXX-999 no tiene stock registrado" }
+
   /stock/reservas:
     post:
       tags: [Reservas]
@@ -165,7 +206,10 @@ paths:
         Rol: CAJERO (token reenviado por ms-ventas).
 
         Descuenta `cantidad` y `reservado` de cada ítem y marca la reserva CONFIRMADA. Si alguna cantidad
-        queda por debajo de `minimo` y no se avisó antes, llama al webhook de n8n `stock-bajo` (CU06).
+        queda por debajo de `minimo` y no se avisó antes, llama al webhook de n8n `stock-bajo` (CU06) con
+        `{ productoCodigo, nombre, cantidad, minimo, fecha }`. La marca `avisoEnviado` se escribe de forma
+        condicional antes de avisar, así dos confirmaciones simultáneas no envían dos avisos; si n8n no responde,
+        la marca se borra y el aviso se reintenta en la siguiente confirmación. La venta nunca falla por n8n.
         Confirmar una reserva ya CONFIRMADA devuelve 200 sin hacer nada.
       parameters:
         - $ref: "#/components/parameters/ReservaId"
@@ -303,6 +347,8 @@ components:
         reservado: { type: integer, example: 6 }
         disponible: { type: integer, description: "cantidad - reservado", example: 42 }
         minimo: { type: integer, example: 12 }
+        bajoMinimo: { type: boolean, description: "cantidad < minimo", example: false }
+        avisoEnviado: { type: boolean, description: "Ya se avisó a n8n que está bajo el mínimo (se borra al reponer)", example: false }
 
     ItemReserva:
       type: object

@@ -1,0 +1,86 @@
+{
+  "format": "layers-model",
+  "generatedBy": "keras v2.15.0",
+  "convertedBy": "TensorFlow.js Converter",
+  "modelTopology": {
+    "keras_version": "2.15.0",
+    "backend": "tensorflow",
+    "model_config": {
+      "class_name": "Sequential",
+      "config": {
+        "name": "clasificador_licores",
+        "layers": [
+          {
+            "class_name": "InputLayer",
+            "config": {
+              "batch_input_shape": [
+                null,
+                224,
+                224,
+                3
+              ],
+              "dtype": "float32",
+              "sparse": false,
+              "name": "imagen"
+            }
+          },
+          {
+            "class_name": "Rescaling",
+            "config": {
+              "name": "rescaling",
+              "trainable": false,
+              "dtype": "float32",
+              "scale": 0.00392156862745098,
+              "offset": 0.0
+            }
+          },
+          {
+            "class_name": "GlobalAveragePooling2D",
+            "config": {
+              "name": "global_average_pooling2d",
+              "trainable": false,
+              "dtype": "float32",
+              "data_format": "channels_last",
+              "keepdims": false
+            }
+          },
+          {
+            "class_name": "Dense",
+            "config": {
+              "name": "probabilidades",
+              "trainable": true,
+              "dtype": "float32",
+              "units": 5,
+              "activation": "softmax",
+              "use_bias": true
+            }
+          }
+        ]
+      }
+    }
+  },
+  "weightsManifest": [
+    {
+      "paths": [
+        "group1-shard1of1.bin"
+      ],
+      "weights": [
+        {
+          "name": "probabilidades/kernel",
+          "shape": [
+            3,
+            5
+          ],
+          "dtype": "float32"
+        },
+        {
+          "name": "probabilidades/bias",
+          "shape": [
+            5
+          ],
+          "dtype": "float32"
+        }
+      ]
+    }
+  ]
+}

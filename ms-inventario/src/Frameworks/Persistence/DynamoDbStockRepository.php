@@ -3,8 +3,10 @@
 namespace Inventario\Frameworks\Persistence;
 
 use Aws\DynamoDb\DynamoDbClient;
+use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\DynamoDb\Marshaler;
 use Inventario\Entities\Stock;
+use Inventario\UseCases\Ports\ConflictoConcurrencia;
 use Inventario\UseCases\Ports\StockRepository;
 
 class DynamoDbStockRepository implements StockRepository
@@ -48,14 +50,58 @@ class DynamoDbStockRepository implements StockRepository
         return $stock;
     }
 
-    public function marcarAvisoEnviado(string $productoCodigo): void
+    public function marcarAvisoEnviado(string $productoCodigo): bool
+    {
+        try {
+            $this->db->updateItem([
+                'TableName' => self::TABLA,
+                'Key' => self::clave($productoCodigo),
+                'UpdateExpression' => 'SET avisoEnviado = :si',
+                'ConditionExpression' => 'attribute_exists(productoCodigo) AND (attribute_not_exists(avisoEnviado) OR avisoEnviado = :no)',
+                'ExpressionAttributeValues' => [':si' => ['BOOL' => true], ':no' => ['BOOL' => false]],
+            ]);
+
+            return true;
+        } catch (DynamoDbException $e) {
+            if ($e->getAwsErrorCode() === 'ConditionalCheckFailedException') {
+                return false;   // otro proceso ya avisó
+            }
+            throw $e;
+        }
+    }
+
+    public function quitarAviso(string $productoCodigo): void
     {
         $this->db->updateItem([
             'TableName' => self::TABLA,
             'Key' => self::clave($productoCodigo),
-            'UpdateExpression' => 'SET avisoEnviado = :si',
-            'ExpressionAttributeValues' => [':si' => ['BOOL' => true]],
+            'UpdateExpression' => 'SET avisoEnviado = :no',
+            'ConditionExpression' => 'attribute_exists(productoCodigo)',
+            'ExpressionAttributeValues' => [':no' => ['BOOL' => false]],
         ]);
+    }
+
+    public function reponer(Stock $leido, Stock $nuevo): void
+    {
+        try {
+            $this->db->updateItem([
+                'TableName' => self::TABLA,
+                'Key' => self::clave($leido->productoCodigo),
+                'UpdateExpression' => 'SET cantidad = :c, avisoEnviado = :a, version = :nv',
+                'ConditionExpression' => 'version = :v',   // bloqueo optimista
+                'ExpressionAttributeValues' => [
+                    ':c' => ['N' => (string) $nuevo->cantidad],
+                    ':a' => ['BOOL' => $nuevo->avisoEnviado],
+                    ':nv' => ['N' => (string) $nuevo->version],
+                    ':v' => ['N' => (string) $leido->version],
+                ],
+            ]);
+        } catch (DynamoDbException $e) {
+            if ($e->getAwsErrorCode() === 'ConditionalCheckFailedException') {
+                throw new ConflictoConcurrencia('El stock cambió mientras se reponía');
+            }
+            throw $e;
+        }
     }
 
     public static function clave(string $productoCodigo): array

@@ -29,8 +29,8 @@ public class RegistrarVentaService implements RegistrarVentaUseCase {
 
   @Override
   public Resultado registrar(Comando comando, String token) {
-    // Si el mismo operationId ya se procesó, no se ejecuta nada otra vez
-    // (en la semana 3 IdempotencyFilter devolverá además la respuesta exacta guardada)
+    // Si el mismo operationId ya se procesó, no se ejecuta nada otra vez. IdempotencyFilter ya devuelve la respuesta
+    // guardada para un Idempotency-Key repetido; esto cubre las ventas de /ventas/sync y los reintentos sin encabezado.
     Optional<Venta> existente = ventas.buscarPorOperationId(comando.operationId());
     if (existente.isPresent()) {
       return new Resultado(existente.get(), false);
@@ -44,8 +44,14 @@ public class RegistrarVentaService implements RegistrarVentaUseCase {
     }
 
     Venta venta = Venta.nueva(comando.operationId(), comando.cajeroId(), detalles, comando.metodo(),
-        comando.origen(), OffsetDateTime.now());
+        comando.origen(), fecha(comando.fechaLocal()));
     return new Resultado(saga.ejecutar(venta, token), true);
+  }
+
+  /** Una venta offline conserva la hora en que se hizo; una fecha futura (reloj del cliente adelantado) no se acepta. */
+  private static OffsetDateTime fecha(OffsetDateTime fechaLocal) {
+    OffsetDateTime ahora = OffsetDateTime.now();
+    return fechaLocal == null || fechaLocal.isAfter(ahora) ? ahora : fechaLocal;
   }
 
   /** Une productos repetidos sumando cantidades. */
