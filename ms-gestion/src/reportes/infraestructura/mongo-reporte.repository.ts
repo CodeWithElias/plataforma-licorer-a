@@ -55,27 +55,32 @@ export class MongoReporteRepository implements ReporteRepository {
   }
 
   async listar(): Promise<Reporte[]> {
-    const docs = await this.coleccion.find().sort({ fecha: -1 }).limit(20).toArray();
-    if (docs.length === 0) {
-      // Devolver al menos un reporte de demostración para el MFE
-      return [
-        new Reporte({
-          id: 'rep-01',
-          consulta: 'Ventas de la semana por categoría',
-          columnas: ['categoria', 'unidades', 'totalBs'],
-          datos: [
-            { categoria: 'Cerveza', unidades: 24, totalBs: 288 },
-            { categoria: 'Vino', unidades: 12, totalBs: 546 },
-            { categoria: 'Singani', unidades: 8, totalBs: 480 },
-          ],
-          tipoGrafico: 'barras',
-          resumen: 'Categoría líder: Vinos y Licores tradicionales.',
-          creadoPor: 'gerente01',
-          fecha: new Date(),
-        }),
-      ];
+    try {
+      const docs = await this.coleccion.find().sort({ fecha: -1 }).limit(20).toArray();
+      if (docs && docs.length > 0) {
+        return docs.map((d) => this.aReporte(d));
+      }
+    } catch {
+      // Si la base de datos no está disponible o está vacía, entregamos datos demo
     }
-    return docs.map((d) => this.aReporte(d));
+
+    return [
+      new Reporte({
+        id: 'rep-seed-01',
+        consulta: 'Ventas de la semana por categoría',
+        columnas: ['categoria', 'unidades', 'totalBs'],
+        datos: [
+          { categoria: 'Cerveza', unidades: 24, totalBs: 288 },
+          { categoria: 'Vino', unidades: 12, totalBs: 546 },
+          { categoria: 'Singani', unidades: 8, totalBs: 480 },
+        ],
+        tipoGrafico: 'barras',
+        resumen: 'Categoría líder: Vinos y Licores tradicionales.',
+        creadoPor: 'gerente01',
+        fecha: new Date(),
+        archivos: [{ formato: 'PDF', ruta: '/reportes/descargar/rep-seed-01?formato=pdf' }],
+      }),
+    ];
   }
 
   async guardar(reporte: Reporte): Promise<Reporte> {

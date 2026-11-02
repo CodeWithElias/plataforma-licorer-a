@@ -33,7 +33,7 @@ export class ExportarReporte {
       });
     }
 
-    const baseUrl = process.env.GESTION_BASE_URL || process.env.BASE_URL || 'http://ms-gestion:3000';
+    const baseUrl = process.env.GESTION_BASE_URL || process.env.BASE_URL || '';
     const cleanBase = baseUrl.replace(/\/$/, '');
     const url = `${cleanBase}/reportes/descargar/${id}?formato=${formato.toLowerCase()}`;
 

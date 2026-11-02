@@ -72,7 +72,7 @@ export async function listarProductos(): Promise<Producto[]> {
     if (r.ok) {
       const productos: Producto[] = await r.json();
       // Guardar en caché local para soporte offline
-      await guardarCatalogoLocal(productos).catch(() => {});
+      await guardarCatalogoLocal(productos).catch(() => { });
       return productos;
     }
   } catch {

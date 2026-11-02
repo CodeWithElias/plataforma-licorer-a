@@ -31,6 +31,11 @@ services:
     entrypoint: ["/bin/sh", "/init/inventario.sh"]
     volumes: ["./ms-inventario/db/inventario.sh:/init/inventario.sh:ro"]
 
+  mongo:
+    image: mongo:7
+    ports: ["27017:27017"]
+    volumes: ["mongo-data:/data/db"]
+
   mongo-init:                          # solo a mano: docker compose run --rm mongo-init
     # Aplica ms-gestion/db/gestion.js en Atlas (colecciones, validadores e índices) y se apaga.
     # Se ejecuta una vez por cluster o cuando cambia gestion.js; no corre con "docker compose up".
@@ -41,20 +46,32 @@ services:
     volumes: ["./ms-gestion/db/gestion.js:/init/gestion.js:ro"]
 
   # ---------- Seguridad y gateway ----------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak_password
+    ports: ["5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
     command: start-dev --import-realm
-    # infra/.env: base (Supabase) y admin. Los secretos de los clientes los toma del .env de quien los usa
-    # (realm-licoreria.json usa ${KEYCLOAK_ADMIN_CLIENT_SECRET}, ${N8N_CLIENT_SECRET} y ${VENTAS_CLIENT_SECRET}).
+    # infra/.env: base y admin. Los secretos de los clientes los toma del .env de quien los usa
     env_file: [./infra/.env, ./ms-gestion/.env, ./n8n/.env, ./ms-ventas/.env]
     environment:
       KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak?sslmode=disable
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_password
       KC_HTTP_RELATIVE_PATH: /auth
       KC_HOSTNAME: http://localhost/auth   # emisor fijo del token
       KC_PROXY_HEADERS: xforwarded
     volumes:
       - "./infra/keycloak:/opt/keycloak/data/import:ro"                       # realm-licoreria.json
       - "./infra/keycloak-tema/licoreria:/opt/keycloak/themes/licoreria:ro"   # tema blanco y lila
+    depends_on: [postgres]
 
   nginx:
     image: nginx:stable
@@ -68,11 +85,17 @@ services:
     env_file: ./ms-ventas/.env
     ports: ["8080:8080"]
     environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      POSTGRES_DB: ventas
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak_password
+      DB_SSLMODE: disable
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
       INVENTARIO_URL: http://ms-inventario:8001
       GESTION_URL: http://ms-gestion:3000/graphql
       KEYCLOAK_TOKEN_URL: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/token
-    depends_on: [keycloak]
+    depends_on: [keycloak, postgres]
 
   ms-inventario:
     build: ./ms-inventario
@@ -87,7 +110,7 @@ services:
       keycloak: { condition: service_started }
 
   n8n:
-    image: n8nio/n8n:2.44.5
+    image: n8nio/n8n:latest
     env_file: ./n8n/.env
     ports: ["5678:5678"]
     # Al arrancar crea las credenciales (Keycloak y Gmail) desde n8n/.env, importa y activa n8n/workflows/*.json
@@ -101,9 +124,10 @@ services:
     env_file: ./ms-gestion/.env
     ports: ["3000:3000"]
     environment:
+      MONGO_URL: mongodb://mongo:27017/gestion
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_URL: http://keycloak:8080/auth
-    depends_on: [keycloak]
+    depends_on: [keycloak, mongo]
 
   web-shell:
     build: ./web-shell
@@ -139,3 +163,5 @@ services:
 volumes:
   n8n-data: {}
   ollama-data: {}
+  mongo-data: {}
+  postgres-data: {}

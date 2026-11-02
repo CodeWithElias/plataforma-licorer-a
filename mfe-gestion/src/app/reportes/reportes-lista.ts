@@ -312,8 +312,11 @@ export class ReportesLista implements OnInit {
         }),
       );
 
-      const url = res.data?.exportarReporte?.url;
+      let url = res.data?.exportarReporte?.url;
       if (url) {
+        if (url.includes('ms-gestion:3000')) {
+          url = url.replace(/http:\/\/ms-gestion:3000/, '');
+        }
         window.open(url, '_blank');
       }
     } catch (e) {

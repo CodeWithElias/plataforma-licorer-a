@@ -38,7 +38,7 @@ export class MotorPdf {
         {
           columns: [
             {
-              text: '🍷 LICORERÍA IMPERIAL',
+              text: 'LICORERÍA IMPERIAL',
               style: 'headerTitulo',
             },
             {
