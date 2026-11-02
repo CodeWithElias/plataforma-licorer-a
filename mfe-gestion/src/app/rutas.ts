@@ -26,6 +26,7 @@ export const rutas: Routes = [
       { path: 'proveedores', component: ProveedoresLista },
       { path: 'proveedores/nuevo', component: ProveedorForm },
       { path: 'proveedores/:id', component: ProveedorForm },
+      { path: 'reportes', loadComponent: () => import('./reportes/reportes-lista').then((m) => m.ReportesLista) },
     ],
   },
 ];

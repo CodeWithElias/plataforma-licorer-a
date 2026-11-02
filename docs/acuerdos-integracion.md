@@ -110,6 +110,6 @@ con `GET http://localhost:5678/webhook/reporte-diario` (opcional `?dia=AAAA-MM-D
 - [x] Aviso de stock bajo sin duplicados y reposición de stock (semana 3, Dev 1).
 - [x] Workflows de n8n CU06 y CU07 con credenciales automáticas y correos por Gmail (semana 3, Dev 1).
 - [ ] Servidor MCP y agentes de ms-ia; `reporteId` en la respuesta de `/reportes` (semana 3, Dev 3).
-- [ ] `exportarReporte` en ms-gestion (semana 3, Dev 2).
-- [ ] Cola offline del POS que llama a `POST /ventas/sync` (semana 3, Dev 2).
+- [x] `exportarReporte` en ms-gestion y pestaña Reportes en mfe-gestion (semana 3, Dev 2).
+- [x] Cola offline del POS que llama a `POST /ventas/sync` (semana 3, Dev 2).
 - [ ] Login de la app móvil desde un dispositivo: `KC_HOSTNAME` con la IP de la PC (ver `app-movil/README.md`).

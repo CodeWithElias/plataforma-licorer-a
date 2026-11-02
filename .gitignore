@@ -6,6 +6,7 @@
 # Dependencias y builds
 node_modules/
 dist/
+*.tsbuildinfo
 target/
 vendor/
 build/
@@ -24,6 +25,7 @@ __pycache__/
 *.iml
 .DS_Store
 Thumbs.db
+scratch/
 
 
 plan de implementacion (iconix).docx
