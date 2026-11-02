@@ -25,6 +25,7 @@ __pycache__/
 *.iml
 .DS_Store
 Thumbs.db
+scratch/
 
 
 plan de implementacion (iconix).docx
