@@ -1,8 +1,10 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
-import { Roles } from '../../compartido/auth/decoradores.js';
+import { Roles, UsuarioActual } from '../../compartido/auth/decoradores.js';
+import type { Usuario } from '../../compartido/auth/usuario.js';
 import { conErroresGraphql } from '../../compartido/interfaces/errores-graphql.js';
 import { ListarReportes } from '../aplicacion/listar-reportes.js';
 import { ExportarReporte } from '../aplicacion/exportar-reporte.js';
+import { GenerarReporte } from '../aplicacion/generar-reporte.js';
 import type { Reporte } from '../dominio/reporte.js';
 
 /** CU07 – Reportes generados y su exportación (GERENTE o ADMIN). */
@@ -12,6 +14,7 @@ export class ReporteResolver {
   constructor(
     private readonly listar: ListarReportes,
     private readonly exportar: ExportarReporte,
+    private readonly generar: GenerarReporte,
   ) {}
 
   @Query()
@@ -19,6 +22,18 @@ export class ReporteResolver {
     return conErroresGraphql(async () => {
       const lista = await this.listar.ejecutar();
       return lista.map(aGraphql);
+    });
+  }
+
+  @Mutation()
+  generarReporte(
+    @Args('consulta') consulta: string,
+    @UsuarioActual() usuario?: Usuario,
+  ) {
+    return conErroresGraphql(async () => {
+      const creador = usuario?.usuario || 'admin01';
+      const creado = await this.generar.ejecutar(consulta, creador);
+      return aGraphql(creado);
     });
   }
 

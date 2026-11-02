@@ -38,6 +38,19 @@ export const EXPORTAR_REPORTE = gql<ExportarReporteRespuesta, { id: string; form
   }
 `;
 
+export const GENERAR_REPORTE = gql<{ generarReporte: ReporteItem }, { consulta: string }>`
+  mutation GenerarReporte($consulta: String!) {
+    generarReporte(consulta: $consulta) {
+      id
+      consulta
+      tipoGrafico
+      resumen
+      creadoPor
+      fecha
+    }
+  }
+`;
+
 export function mensajeDeError(error: unknown): string {
   if (!error) return 'Error inesperado';
   if (typeof error === 'string') return error;

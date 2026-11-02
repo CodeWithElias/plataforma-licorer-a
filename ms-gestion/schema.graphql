@@ -26,7 +26,8 @@ type Mutation {
   # CU06 – Reabastecimiento (lo llama la tool MCP crear_orden_compra)
   crearOrdenCompra(input: OrdenCompraInput!): OrdenCompra!
 
-  # CU07 – Exportar reporte
+  # CU07 – Generar y exportar reporte (IA + PDF)
+  generarReporte(consulta: String!): Reporte!
   exportarReporte(id: ID!, formato: FormatoExportacion!): ArchivoReporte!
 }
 

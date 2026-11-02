@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ListarReportes } from './aplicacion/listar-reportes.js';
 import { ExportarReporte } from './aplicacion/exportar-reporte.js';
+import { GenerarReporte } from './aplicacion/generar-reporte.js';
 import { REPORTE_REPOSITORY } from './dominio/reporte.repository.js';
 import { MongoReporteRepository } from './infraestructura/mongo-reporte.repository.js';
 import { MotorPdf } from './infraestructura/motor-pdf.js';
@@ -18,9 +19,10 @@ import { ReporteResolver } from './interfaces/reporte.resolver.js';
     ReporteResolver,
     ListarReportes,
     ExportarReporte,
+    GenerarReporte,
     MotorPdf,
     { provide: REPORTE_REPOSITORY, useClass: MongoReporteRepository },
   ],
-  exports: [ListarReportes, ExportarReporte],
+  exports: [ListarReportes, ExportarReporte, GenerarReporte],
 })
 export class ReportesModule {}
