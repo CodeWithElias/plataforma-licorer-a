@@ -12,6 +12,9 @@ import { CamaraModal } from './CamaraModal';
 import { ColaOfflineModal } from './ColaOfflineModal';
 import { contarVentasOffline, guardarVentaOffline } from './db/indexed-db';
 import { estilos } from './estilos';
+import { type PrediccionLocal } from './clasificadorTfjs'
+import EscanerCamara from './EscanerCamara'
+
 
 type Aviso = { tipo: 'ok' | 'error'; titulo: string; texto: string } | null;
 
@@ -35,6 +38,7 @@ const TIPOS: Record<string, string> = {
 
 /** Punto de venta (CU02, CU03, CU04): catálogo, carrito, cobro online/offline y cámara. */
 export default function Pos() {
+
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCatalogo, setErrorCatalogo] = useState<string | null>(null);
@@ -54,6 +58,10 @@ export default function Pos() {
   const refrescarCola = () => {
     contarVentasOffline().then(setColaCount).catch(() => {});
   };
+
+ 
+  const [escanerAbierto, setEscanerAbierto] = useState(false)
+
 
   useEffect(() => {
     const handleOnline = () => {
@@ -207,6 +215,16 @@ export default function Pos() {
                 onChange={(e) => setBusqueda(e.target.value)}
               />
             </label>
+            
+          <div className="pos-herramientas">
+            <label className="pos-buscar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <input placeholder="Buscar por código, nombre o marca" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+            </label>
+            <button type="button" className="pos-btn-camara" onClick={() => setEscanerAbierto(true)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" /><circle cx="12" cy="13" r="3.5" /></svg>
+              Escanear cámara (IA)
+            </button>
           </div>
         </header>
 
@@ -351,6 +369,22 @@ export default function Pos() {
         productos={productos}
         onDetectar={(prod) => cambiarCantidad(prod, 1)}
       />
+
+      {escanerAbierto && (
+        <EscanerCamara
+          productos={productos}
+          alReconocer={(prod: Producto, pred: PrediccionLocal) => {
+            cambiarCantidad(prod, 1)
+            setAviso({
+              tipo: 'ok',
+              titulo: `Reconocido por IA: ${prod.nombre}`,
+              texto: `Confianza ${(pred.confianza * 100).toFixed(1)} % · Modelo local ${pred.modelo}`,
+            })
+          }}
+          alCerrar={() => setEscanerAbierto(false)}
+        />
+      )}
+
     </section>
   );
 }

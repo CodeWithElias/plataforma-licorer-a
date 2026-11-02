@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../servicios/api.dart';
 import '../servicios/sesion.dart';
 import 'camara_page.dart';
+import 'catalogo_offline_page.dart';
 
 class InicioPage extends StatelessWidget {
   const InicioPage({super.key, required this.sesion, required this.api, required this.alCerrar});
@@ -41,12 +42,12 @@ class InicioPage extends StatelessWidget {
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CamaraPage(api: api))),
             ),
           ),
-          const Card(
+          Card(
             child: ListTile(
-              enabled: false,
-              leading: Icon(Icons.inventory_2),
-              title: Text('Catálogo y stock sin conexión'),
-              subtitle: Text('Semana 3: SQLite + modelo TFLite en el teléfono'),
+              leading: const Icon(Icons.inventory_2),
+              title: const Text('Catálogo y stock sin conexión'),
+              subtitle: const Text('SQLite local + modelo TFLite en el teléfono'),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CatalogoOfflinePage(api: api))),
             ),
           ),
         ],

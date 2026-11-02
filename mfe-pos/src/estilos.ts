@@ -119,6 +119,7 @@ export const estilos = `
 .pos-alerta.error { background: var(--rojo-fondo); color: var(--rojo); border: 1px solid #f6c5d1; }
 .pos-catalogo > .pos-alerta { margin-bottom: 1rem; }
 
+
 /* Modales (Cola Offline y Cámara) */
 .pos-modal-fondo { position: fixed; inset: 0; background: rgba(36,26,56,.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 1.25rem; }
 .pos-modal-cuerpo { background: #fff; border: 1px solid var(--borde); border-radius: 18px; max-width: 560px; width: 100%; box-shadow: 0 20px 40px -15px rgba(36,26,56,.25); overflow: hidden; display: flex; flex-direction: column; }
@@ -140,4 +141,37 @@ export const estilos = `
 .pos-camara-recuadro { width: 180px; height: 180px; border: 2px dashed rgba(168,85,247,.8); border-radius: 12px; position: relative; }
 .pos-camara-laser { position: absolute; top: 0; left: 0; right: 0; height: 2px; background: #a855f7; box-shadow: 0 0 10px #c084fc; animation: pos-laser 1.8s infinite alternate; }
 @keyframes pos-laser { from { top: 5%; } to { top: 95%; } }
+/* Escáner de cámara con IA Local (TF.js - CU04) */
+.pos-herramientas { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
+.pos-btn-camara { display: inline-flex; align-items: center; gap: .45rem; height: 44px; padding: 0 1rem;
+  border: 1px solid var(--lila-300); border-radius: 12px; background: var(--lila-50); color: var(--lila-700);
+  font-weight: 600; font-size: .9rem; cursor: pointer; transition: all .15s; }
+.pos-btn-camara:hover { background: var(--lila-600); border-color: var(--lila-600); color: #fff; }
+.pos-btn-camara svg { width: 18px; height: 18px; }
+.pos-modal-fondo { position: fixed; inset: 0; z-index: 999; display: grid; place-items: center; padding: 1rem;
+  background: rgba(36, 26, 56, 0.52); backdrop-filter: blur(3px); }
+.pos-modal { width: min(520px, 100%); background: #fff; border: 1px solid var(--borde); border-radius: 18px;
+  box-shadow: 0 24px 48px -12px rgba(36, 26, 56, 0.35); overflow: hidden; }
+.pos-modal-encabezado { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+  padding: 1.15rem 1.35rem; border-bottom: 1px solid var(--borde); background: var(--lila-50); }
+.pos-modal-encabezado h3 { margin: 0; font-size: 1.08rem; color: var(--tinta); }
+.pos-modal-encabezado p { margin: .2rem 0 0; font-size: .8rem; color: var(--gris); }
+.pos-modal-cerrar { width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--gris); font-size: 1rem; cursor: pointer; }
+.pos-modal-cerrar:hover { background: var(--lila-100); color: var(--lila-700); }
+.pos-modal-cuerpo { display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem 1.35rem; }
+.pos-visor-camara { position: relative; width: 100%; height: 260px; border-radius: 14px; overflow: hidden;
+  background: #191326; display: grid; place-items: center; }
+.pos-visor-camara video.activo { width: 100%; height: 100%; object-fit: cover; }
+.pos-visor-camara video.oculto { display: none; }
+.pos-visor-placeholder { padding: 1.5rem; text-align: center; color: #ddd2fe; font-size: .88rem; line-height: 1.4; }
+.pos-modal-acciones { display: flex; gap: .75rem; flex-wrap: wrap; }
+.pos-btn-primario { flex: 1; height: 42px; padding: 0 1rem; border: 0; border-radius: 10px;
+  background: var(--degradado); color: #fff; font-weight: 600; cursor: pointer; }
+.pos-btn-primario[disabled] { opacity: .45; cursor: default; }
+.pos-btn-secundario { display: inline-flex; align-items: center; justify-content: center; flex: 1; height: 42px;
+  padding: 0 1rem; border: 1px solid var(--lila-300); border-radius: 10px; background: var(--lila-50);
+  color: var(--lila-700); font-weight: 600; font-size: .9rem; cursor: pointer; }
+.pos-btn-secundario:hover { background: var(--lila-100); }
+
 `
