@@ -484,3 +484,96 @@ node scratch/probar-sistema.mjs
    Invoke-RestMethod -Uri "http://localhost:3000/reportes/descargar/rep-seed-01?formato=pdf" -OutFile "reporte-descargado.pdf"
    ```
 2. Abre el archivo generado `reporte-descargado.pdf`. Verifica que se visualiza el documento completo con el resumen ejecutivo y la tabla de productos.
+
+---
+
+## 5. Inventario Detallado de Archivos Creados y Modificados (Semana 3 – Dev 2)
+
+A continuación se detalla la lista completa de los **32 archivos** modificados y creados con **+2,774 líneas de código**, organizados por subsistema y responsabilidad:
+
+### 5.1. Microfrontend de Punto de Venta (`mfe-pos/`)
+* **[`mfe-pos/src/db/indexed-db.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/db/indexed-db.ts) (NUEVO - 185 líneas):**
+  - Implementación nativa de IndexedDB con base de datos `licoreria_pos_db` (versión 1).
+  - Almacenes de objetos: `ventasOffline` (con índice por `operationId` y estado `sincronizado`) y `catalogoLocal` (con clave primaria `codigo` y TTL de caché).
+  - Funciones exportadas: `guardarVentaOffline`, `listarVentasOffline`, `eliminarVentaOffline`, `marcarVentaConError`, `guardarCatalogoLocal`, `obtenerCatalogoLocal`.
+* **[`mfe-pos/src/ColaOfflineModal.tsx`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/ColaOfflineModal.tsx) (NUEVO - 141 líneas):**
+  - Modal interactivo para inspeccionar tickets pendientes encolados en IndexedDB.
+  - Muestra monto total, ítems, fecha local, estado (`PENDIENTE`/`ERROR`) y botón de sincronización manual inmediata.
+* **[`mfe-pos/src/CamaraModal.tsx`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/CamaraModal.tsx) (NUEVO - 122 líneas):**
+  - Componente modal WebRTC que solicita y proyecta el flujo de cámara en vivo (`navigator.mediaDevices.getUserMedia`).
+  - Retícula de apuntado con animación láser lila y 5 chips de prueba rápida de códigos de barras (`CER-001`, `VIN-001`, `SIN-003`, `RON-002`, `WHI-003`).
+* **[`mfe-pos/src/api.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/api.ts) (MODIFICADO - +187 líneas):**
+  - Conexión con `ms-ventas` para cobro online (`POST /api/ventas/ventas`) y sincronización en lote (`POST /api/ventas/ventas/sync`).
+  - Depuración automática: elimina registros de IndexedDB si el backend responde `OK` o `DUPLICADO`; los marca si responden `ERROR`.
+  - Carga resiliente del catálogo: consulta a `ms-inventario` y respalda en IndexedDB para disponibilidad offline.
+* **[`mfe-pos/src/Pos.tsx`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/Pos.tsx) (MODIFICADO - +335 líneas):**
+  - Detección de conectividad del navegador mediante listeners `online` y `offline`.
+  - Badge reactivo `🟢 En línea` / `🔴 Offline (Sin conexión)`.
+  - Botón condicional `Cobrar (Modo Offline)` que enruta directo a IndexedDB sin fallar en pantalla.
+  - Badge y botón flotante de acceso a la cola de ventas offline pendientes.
+* **[`mfe-pos/src/estilos.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/estilos.ts) (MODIFICADO - +83 líneas):**
+  - Tokens y estilos CSS para modales de cámara, visor láser, badges de conectividad y tarjeta de cola offline.
+* **[`mfe-pos/src/api.test.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-pos/src/api.test.ts) (MODIFICADO - +30 líneas):**
+  - Pruebas unitarias automatizadas con Vitest validando guardado y purga en cola offline.
+
+---
+
+### 5.2. Microservicio de Gestión Empresarial (`ms-gestion/` – Backend NestJS DDD)
+* **[`ms-gestion/src/reportes/dominio/reporte.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/dominio/reporte.ts) (NUEVO - 51 líneas):**
+  - Entidad de dominio `Reporte` y tipos fuertemente tipados (`FormatoReporte: 'PDF' | 'XLSX'`, `TipoGrafico`).
+* **[`ms-gestion/src/reportes/dominio/reporte.repository.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/dominio/reporte.repository.ts) (NUEVO - 18 líneas):**
+  - Puerto del repositorio de dominio (`buscarPorId`, `listar`, `guardar`, `actualizarArchivos`).
+* **[`ms-gestion/src/reportes/aplicacion/exportar-reporte.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/aplicacion/exportar-reporte.ts) (NUEVO - 75 líneas):**
+  - Caso de uso que invoca el motor PDF, almacena en caché en memoria y retorna la URL pública de descarga.
+* **[`ms-gestion/src/reportes/aplicacion/listar-reportes.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/aplicacion/listar-reportes.ts) (NUEVO - 16 líneas):**
+  - Caso de uso para listar el histórico de reportes ejecutivos.
+* **[`ms-gestion/src/reportes/aplicacion/exportar-reporte.spec.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/aplicacion/exportar-reporte.spec.ts) (NUEVO - 86 líneas):**
+  - Pruebas unitarias de aplicación con Jest mockeando repositorios y verificando la generación del buffer binario.
+* **[`ms-gestion/src/reportes/infraestructura/motor-pdf.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/infraestructura/motor-pdf.ts) (NUEVO - 171 líneas):**
+  - Motor declarativo en memoria basado en `pdfmake`.
+  - Configuración de fuentes Helvetica estándar, maquetación de cabecera con membrete corporativo, tabla formateada con totales y pie de página.
+* **[`ms-gestion/src/reportes/infraestructura/mongo-reporte.repository.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/infraestructura/mongo-reporte.repository.ts) (NUEVO - 121 líneas):**
+  - Adaptador de persistencia MongoDB sobre la colección `reportes`.
+* **[`ms-gestion/src/reportes/infraestructura/reporte-descarga.controller.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/infraestructura/reporte-descarga.controller.ts) (NUEVO - 31 líneas):**
+  - Controlador REST `GET /reportes/descargar/:id?formato=pdf` que retorna el stream binario con `Content-Type: application/pdf` y `Content-Disposition: attachment`.
+* **[`ms-gestion/src/reportes/interfaces/reporte.resolver.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/interfaces/reporte.resolver.ts) (NUEVO - 50 líneas):**
+  - Resolvers GraphQL con autenticación Keycloak (`@Roles('GERENTE', 'ADMIN')`) para la query `reportes` y la mutación `exportarReporte`.
+* **[`ms-gestion/src/reportes/reportes.module.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/reportes/reportes.module.ts) (MODIFICADO - +18 líneas):**
+  - Cableado y registro de servicios, controladores, repositorios y resolvers de reportes.
+* **[`ms-gestion/src/app.module.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/src/app.module.ts) (MODIFICADO - +9 líneas):**
+  - Resolución robusta de `schema.graphql` compatible tanto en Docker como en ejecución local sin Docker.
+* **[`ms-gestion/package.json`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/ms-gestion/package.json) (MODIFICADO):**
+  - Inclusión de la dependencia de producción `pdfmake`.
+
+---
+
+### 5.3. Microfrontend de Gestión (`mfe-gestion/` – Frontend Angular)
+* **[`mfe-gestion/src/app/reportes/reportes-lista.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-gestion/src/app/reportes/reportes-lista.ts) (NUEVO - 344 líneas):**
+  - Componente Angular standalone con tarjetas de métricas analíticas (Total reportes, automatización diaria activa, formatos admitidos).
+  - Tabla de reportes con badges de creador, fechas formateadas y botón `📄 Descargar PDF` con indicador de estado de generación.
+* **[`mfe-gestion/src/app/reportes/reportes.graphql.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-gestion/src/app/reportes/reportes.graphql.ts) (NUEVO - 46 líneas):**
+  - Documentos GraphQL con Apollo Angular (`LISTAR_REPORTES` y mutación `EXPORTAR_REPORTE`).
+* **[`mfe-gestion/src/app/gestion/gestion.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-gestion/src/app/gestion/gestion.ts) (MODIFICADO):**
+  - Pestaña de navegación `Reportes` habilitada junto a `Proveedores`.
+* **[`mfe-gestion/src/app/rutas.ts`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/mfe-gestion/src/app/rutas.ts) (MODIFICADO):**
+  - Ruta perezosa `reportes` asociada al componente `ReportesLista`.
+
+---
+
+### 5.4. Infraestructura, Gateway y Automatizaciones
+* **[`docker-compose.yml`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/docker-compose.yml) (MODIFICADO - +36 líneas):**
+  - Configuración de contenedor PostgreSQL local (`licoreria-postgres-1`) para independizar Keycloak y `ms-ventas` de Supabase externo.
+  - Conexión de `licoreria-mongo-1` para la base `gestion`.
+  - Configuración de imagen y variables de `n8n`.
+* **[`infra/nginx.conf`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/infra/nginx.conf) (MODIFICADO - +4 líneas):**
+  - Regla de proxy inverso `location /reportes/` hacia `ms-gestion:3000` para descargas públicas desde cualquier navegador.
+* **[`n8n/.env`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/n8n/.env) (MODIFICADO):**
+  - Variables de entorno para integración SMTP de Gmail, `VENTAS_URL`, `GESTION_URL` y zona horaria de Bolivia.
+
+---
+
+### 5.5. Documentación y Acuerdos de Integración
+* **[`docs/plan-implementacion-dev2-semana3.md`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/docs/plan-implementacion-dev2-semana3.md) (NUEVO - 486 líneas):**
+  - Documento rector con arquitectura ICONIX, 7 diagramas Mermaid, guía de pruebas paso a paso e inventario de archivos.
+* **[`docs/acuerdos-integracion.md`](file:///c:/Users/Usua/Documents/Universidad/9%20no/Software/Examen%202/plataforma-licorer-a/docs/acuerdos-integracion.md) (MODIFICADO):**
+  - Casillas de verificación de la Semana 3 de Dev 2 marcadas formalmente como completadas.
