@@ -40,8 +40,9 @@ uvicorn app.main:app --reload --port 8002 --env-file .env
 | `GET /yo` | cualquiera con token | ✅ |
 | `POST /imagen/clasificar` (multipart `imagen`) | CAJERO, ALMACEN, GERENTE | ✅ Semana 2 (CU04): TFLite + nombre del producto desde ms-inventario |
 | `GET /modelos/latest`, `GET /modelos/{version}/{archivo}` | cualquiera con token | ✅ Para que la app y el POS descarguen el modelo |
-| `POST /video/analizar` | | Semana 3 |
-| `POST /reportes`, `POST /agentes/reabastecimiento` | GERENTE | Semana 3 (agentes LangGraph + MCP, ver `docs/tools-mcp.md`) |
+| `POST /video/analizar` (multipart `video`) | CAJERO, ALMACEN, GERENTE | ✅ Semana 3 (CU04): 1 frame/s con OpenCV + clasificador |
+| `POST /reportes`, `POST /agentes/reabastecimiento` | GERENTE | ✅ Semana 3 (agentes LangGraph + MCP, ver `docs/tools-mcp.md`) |
+| `GET /mcp/tools`, `POST /mcp/tools/{nombre}` | según tool | ✅ Semana 3 (Servidor MCP FastMCP) |
 
 Sin modelo entrenado, clasificar y `/modelos/latest` responden **503 `MODELO_NO_DISPONIBLE`**.
 

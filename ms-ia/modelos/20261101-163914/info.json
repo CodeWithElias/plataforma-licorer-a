@@ -1,0 +1,14 @@
+{
+  "version": "20261101-163914",
+  "entrenadoEn": "2026-11-01T20:39:14+00:00",
+  "etiquetas": [
+    "absolut_750",
+    "casareal_negra",
+    "huari_620",
+    "jw_red",
+    "pacena_620"
+  ],
+  "tamano": 224,
+  "precisionValidacion": 1.0,
+  "tfjs": true
+}

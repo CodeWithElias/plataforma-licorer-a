@@ -3,7 +3,7 @@ __pycache__
 *.pyc
 .pytest_cache
 .env
-modelos
+/modelos
 dataset
 dataset-prueba
 entrenamiento
