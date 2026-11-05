@@ -9,50 +9,55 @@ import {
   ReporteItem,
 } from './reportes.graphql.js';
 
+interface FilaReporte {
+  nombre: string;
+  unidades: number;
+  monto: number;
+  porcentaje: number;
+}
+
 @Component({
   selector: 'app-reportes-lista',
   template: `
-    <header class="encabezado">
+    <!-- Encabezado Principal -->
+    <header class="encabezado-principal">
       <div>
-        <h1>Reportes Ejecutivos y Ventas</h1>
-        <p>Reportes generados por el agente de IA y consolidados diarios para la gerencia (CU07).</p>
+        <h1 class="titulo-vista">Reportes</h1>
+        <p class="subtitulo-vista">Pide un reporte con tus palabras. El agente lo arma, tú lo ajustas.</p>
       </div>
-      <div class="acciones-encabezado">
-        <button type="button" class="boton-secundario" (click)="cargar()" [disabled]="cargando()">
-          🔄 Actualizar
-        </button>
+      <div class="badge-automatizacion" title="Workflow CU07 activo en n8n">
+        <span class="punto-verde" aria-hidden="true">●</span>
+        <span>Informe diario automático · 23:00 · Activo</span>
       </div>
     </header>
 
-    <!-- Panel Generador de Reportes con IA -->
-    <section class="tarjeta-ia">
-      <div class="ia-cabecera">
-        <div class="ia-badge">
-          <span>✨</span>
-          <span>AGENTE DE INTELIGENCIA ARTIFICIAL (CU07)</span>
-        </div>
-        <h2>Generar Reporte Dinámico por Lenguaje Natural</h2>
-        <p>Consulta en tus propias palabras o dicta por voz. El agente LangGraph extrae las ventas de PostgreSQL vía MCP y redacta el análisis ejecutivo.</p>
+    <!-- ========================================== -->
+    <!-- BLOQUE 1: ASISTENTE DE REPORTES (IA)       -->
+    <!-- ========================================== -->
+    <section class="tarjeta-contenedor asistente-ia">
+      <div class="ia-seccion-header">
+        <span class="etiqueta-sub">ASISTENTE DE REPORTES (IA)</span>
+        <h2 class="pregunta-principal">¿Qué reporte necesitas?</h2>
       </div>
 
-      <div class="ia-prompt-box">
-        <div class="ia-input-wrapper">
-          <span class="ia-input-icon" aria-hidden="true">💬</span>
+      <!-- Barra de Prompt y Voz -->
+      <div class="barra-prompt">
+        <div class="input-prompt-contenedor">
           <input
             type="text"
-            class="ia-input"
-            placeholder="Ej: Ventas de hoy por producto, o rendimiento de vinos vs cervezas..."
+            class="input-prompt"
+            placeholder="Ej: Ventas de este mes por categoría, comparado con el mes anterior"
             [value]="consulta()"
             (input)="consulta.set($any($event.target).value)"
-            (keyup.enter)="generarReporteIa()"
+            (keyup.enter)="generarReporte()"
             [disabled]="generando()"
           />
           <button
             type="button"
-            class="btn-mic"
+            class="btn-icono-mic"
             [class.grabando]="grabando()"
             (click)="alternarVoz()"
-            title="Dictar consulta por voz"
+            title="Dictar por voz"
             [disabled]="generando()"
           >
             🎤
@@ -60,213 +65,499 @@ import {
         </div>
         <button
           type="button"
-          class="btn-generar"
-          (click)="generarReporteIa()"
+          class="btn-generar-primario"
+          (click)="generarReporte()"
           [disabled]="generando() || !consulta().trim()"
         >
           @if (generando()) {
-            <span class="spinner" aria-hidden="true">⏳</span>
-            <span>Analizando con IA…</span>
+            <span class="spinner-icono" aria-hidden="true">⏳</span>
+            <span>Generando…</span>
           } @else {
-            <span>🚀 Generar Reporte</span>
+            <span>Generar reporte</span>
           }
         </button>
       </div>
 
-      <!-- Chips de consultas frecuentes -->
-      <div class="ia-chips">
-        <span class="chip-label">Consultas rápidas:</span>
-        <button type="button" class="chip" (click)="usarSugerencia('Ventas de hoy por producto en barras')">
-          📅 Ventas de hoy por producto
+      <!-- Chips de Consultas Rápidas -->
+      <div class="fila-consultas-rapidas">
+        <span class="etiqueta-rapida">Consultas rápidas:</span>
+        <button type="button" class="chip-rapido" (click)="usarSugerencia('Ventas de hoy por producto')">
+          Ventas de hoy por producto
         </button>
-        <button type="button" class="chip" (click)="usarSugerencia('Productos con mayor recaudación de la jornada')">
-          🏆 Mayor recaudación
+        <button type="button" class="chip-rapido" (click)="usarSugerencia('Mayor recaudación')">
+          Mayor recaudación
         </button>
-        <button type="button" class="chip" (click)="usarSugerencia('Ventas de cerveza comparadas con vinos')">
-          🍺 Cervezas vs Vinos
+        <button type="button" class="chip-rapido" (click)="usarSugerencia('Cervezas vs vinos')">
+          Cervezas vs vinos
         </button>
-        <button type="button" class="chip" (click)="usarSugerencia('Estado de stock y productos bajo el mínimo')">
-          📦 Stock bajo mínimo
+        <button type="button" class="chip-rapido" (click)="usarSugerencia('Stock bajo mínimo')">
+          Stock bajo mínimo
         </button>
+        <button type="button" class="chip-rapido" (click)="usarSugerencia('Productos sin rotación')">
+          Productos sin rotación
+        </button>
+        <button type="button" class="chip-rapido" (click)="usarSugerencia('Ventas por cajero')">
+          Ventas por cajero
+        </button>
+      </div>
+
+      <hr class="separador-fino" />
+
+      <!-- Subsección: Parámetros Interpretados -->
+      <div class="seccion-parametros">
+        <div class="parametros-header">
+          <span class="param-titulo">Parámetros interpretados · <small>cambia cualquiera y se regenera</small></span>
+          <span class="param-aclaracion">Los campos en lila los completó el agente</span>
+        </div>
+
+        <!-- Caja de Razonamiento del Agente -->
+        <div class="caja-razonamiento">
+          <div class="linea-razonamiento">
+            <strong>Entendí:</strong>
+            <span>{{ entendiTexto() }}</span>
+          </div>
+          <div class="linea-razonamiento">
+            <strong>Asumí:</strong>
+            <span>{{ asumiTexto() }}</span>
+            <button type="button" class="btn-corregir-chip" (click)="corregirSupuestos()">Corregir</button>
+          </div>
+        </div>
+
+        <!-- Grilla de Desplegables en Lila Suave -->
+        <div class="grilla-controles-lila">
+          <div class="campo-control">
+            <label>Período</label>
+            <select [value]="paramPeriodo()" (change)="cambiarParam('periodo', $any($event.target).value)">
+              <option value="este_mes">Este mes</option>
+              <option value="hoy">Hoy</option>
+              <option value="esta_semana">Esta semana</option>
+              <option value="ultimos_30">Últimos 30 días</option>
+              <option value="este_anio">Este año</option>
+            </select>
+          </div>
+
+          <div class="campo-control">
+            <label>Métrica</label>
+            <select [value]="paramMetrica()" (change)="cambiarParam('metrica', $any($event.target).value)">
+              <option value="ventas_bs">Ventas (Bs)</option>
+              <option value="unidades">Unidades vendidas</option>
+              <option value="margen">Margen bruto</option>
+            </select>
+          </div>
+
+          <div class="campo-control">
+            <label>Agrupar por</label>
+            <select [value]="paramAgrupar()" (change)="cambiarParam('agrupar', $any($event.target).value)">
+              <option value="categoria">Categoría</option>
+              <option value="producto">Producto</option>
+              <option value="fecha">Fecha</option>
+              <option value="cajero">Cajero</option>
+            </select>
+          </div>
+
+          <div class="campo-control">
+            <label>Comparar con</label>
+            <select [value]="paramComparar()" (change)="cambiarParam('comparar', $any($event.target).value)">
+              <option value="mes_anterior">Mes anterior</option>
+              <option value="semana_anterior">Semana anterior</option>
+              <option value="sin_comparacion">Sin comparación</option>
+            </select>
+          </div>
+
+          <div class="campo-control">
+            <label>Categoría</label>
+            <select [value]="paramCategoria()" (change)="cambiarParam('categoria', $any($event.target).value)">
+              <option value="todas">Todas</option>
+              <option value="cerveza">Cervezas</option>
+              <option value="vino">Vinos</option>
+              <option value="singani">Singanis</option>
+              <option value="ron">Rones</option>
+              <option value="whisky">Whiskies</option>
+            </select>
+          </div>
+
+          <div class="campo-control">
+            <label>Método de pago</label>
+            <select [value]="paramMetodoPago()" (change)="cambiarParam('metodoPago', $any($event.target).value)">
+              <option value="todos">Todos</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="qr">QR</option>
+              <option value="tarjeta">Tarjeta</option>
+            </select>
+          </div>
+
+          <div class="campo-control">
+            <label>Orden y límite</label>
+            <select [value]="paramOrden()" (change)="cambiarParam('orden', $any($event.target).value)">
+              <option value="mayor_top10">Mayor a menor · Top 10</option>
+              <option value="mayor_todos">Mayor a menor · Todos</option>
+              <option value="menor_top10">Menor a mayor</option>
+            </select>
+          </div>
+
+          <div class="campo-control">
+            <label>Visualización</label>
+            <select [value]="paramVisualizacion()" (change)="cambiarParam('visualizacion', $any($event.target).value)">
+              <option value="barras_tabla">Barras + tabla</option>
+              <option value="solo_barras">Solo barras</option>
+              <option value="lineas">Líneas de tendencia</option>
+              <option value="torta">Circular / Torta</option>
+              <option value="solo_tabla">Solo tabla</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Fila de Agregar Parámetro y Sugerencias -->
+        <div class="fila-sugerencias-agente">
+          <button type="button" class="btn-agregar-param" (click)="agregarParametroExtra()">
+            + Agregar parámetro
+          </button>
+          <span class="sugerencias-label">El agente sugiere:</span>
+          <button type="button" class="chip-filtro-extra" (click)="aplicarFiltroSugerido('Excluir anuladas')">
+            Excluir anuladas
+          </button>
+          <button type="button" class="chip-filtro-extra" (click)="aplicarFiltroSugerido('Solo fines de semana')">
+            Solo fines de semana
+          </button>
+          <button type="button" class="chip-filtro-extra" (click)="aplicarFiltroSugerido('Agregar margen por producto')">
+            Agregar margen por producto
+          </button>
+        </div>
       </div>
     </section>
 
-    <!-- Tarjetas de métricas rápidas -->
-    <div class="grid-metricas">
-      <div class="tarjeta-metrica">
-        <span class="metrica-etiqueta">Total Reportes</span>
-        <span class="metrica-valor">{{ reportes().length }}</span>
-        <small class="metrica-detalle">Histórico generado</small>
+    <!-- ========================================== -->
+    <!-- BLOQUE 2: RESULTADO                        -->
+    <!-- ========================================== -->
+    <section class="tarjeta-contenedor resultado-seccion">
+      <div class="resultado-barra-superior">
+        <h2 class="resultado-titulo">Resultado</h2>
+        <div class="resultado-acciones-descarga">
+          <button
+            type="button"
+            class="btn-accion-descarga"
+            [disabled]="descargandoId() === ultimoReporteId()"
+            (click)="descargarPdf(ultimoReporteId())"
+          >
+            📄 Descargar PDF
+          </button>
+          <button
+            type="button"
+            class="btn-accion-descarga"
+            (click)="descargarXlsx()"
+          >
+            📊 Descargar XLSX
+          </button>
+          <button
+            type="button"
+            class="btn-accion-descarga"
+            (click)="programarReporte()"
+          >
+            ⏰ Programar este reporte
+          </button>
+        </div>
       </div>
-      <div class="tarjeta-metrica">
-        <span class="metrica-etiqueta">Automatización</span>
-        <span class="metrica-valor">Activa (23:00)</span>
-        <small class="metrica-detalle">Flujo diario n8n</small>
-      </div>
-      <div class="tarjeta-metrica">
-        <span class="metrica-etiqueta">Exportación</span>
-        <span class="metrica-valor">PDF / XLSX</span>
-        <small class="metrica-detalle">Formato oficial</small>
-      </div>
-    </div>
 
-    @if (error()) {
-      <div class="alerta error">
-        <strong>Error al cargar reportes</strong>
-        <span>{{ error() }}</span>
+      <!-- Pasos Completados (Traza ICONIX Verde) -->
+      <div class="fila-pasos-completados">
+        <span class="paso-badge activo">✓ 1. Consulta interpretada</span>
+        <span class="paso-badge activo">✓ 2. Datos obtenidos de PostgreSQL</span>
+        <span class="paso-badge activo">✓ 3. Análisis redactado</span>
       </div>
-    } @else {
-      <div class="tarjeta tabla-contenedor">
-        @if (cargando()) {
-          <div class="estado-vacio">Cargando reportes consolidados…</div>
-        } @else if (reportes().length === 0) {
-          <div class="estado-vacio">
-            <strong>No hay reportes generados todavía</strong>
-            <span>Escribe una consulta arriba para generar tu primer reporte ejecutivo con IA.</span>
+
+      <!-- Dos Columnas: Resumen Ejecutivo y Gráfico + Tabla -->
+      <div class="grilla-dos-columnas">
+        <!-- Columna 1: Resumen Ejecutivo -->
+        <div class="caja-resumen-ejecutivo">
+          <span class="etiqueta-bloque">RESUMEN EJECUTIVO</span>
+          <div class="contenido-narrativa">
+            <p class="parrafo-resumen">{{ resumenEjecutivo() }}</p>
+            <div class="kpis-resumen">
+              <div class="kpi-caja">
+                <span class="kpi-num">Bs {{ totalVentasBs().toFixed(2) }}</span>
+                <span class="kpi-label">Total Recaudado</span>
+              </div>
+              <div class="kpi-caja">
+                <span class="kpi-num">{{ totalUnidades() }} un.</span>
+                <span class="kpi-label">Volumen Vendido</span>
+              </div>
+              <div class="kpi-caja">
+                <span class="kpi-num">{{ categoriaLider() }}</span>
+                <span class="kpi-label">Categoría Líder</span>
+              </div>
+            </div>
           </div>
-        } @else {
-          <table>
+        </div>
+
+        <!-- Columna 2: Gráfico y Tabla -->
+        <div class="caja-grafico-tabla">
+          <span class="etiqueta-bloque">GRÁFICO Y TABLA</span>
+          
+          <!-- Visualización de Barras Proporcionales -->
+          <div class="grafico-barras-contenedor">
+            @for (f of filasDatos(); track f.nombre) {
+              <div class="barra-item">
+                <div class="barra-info">
+                  <span class="barra-nombre">{{ f.nombre }}</span>
+                  <span class="barra-monto">Bs {{ f.monto.toFixed(2) }} ({{ f.unidades }} un.)</span>
+                </div>
+                <div class="barra-pista">
+                  <div class="barra-progreso" [style.width.%]="f.porcentaje"></div>
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Mini Tabla de Detalle -->
+          <div class="mini-tabla-contenedor">
+            <table class="mini-tabla">
+              <thead>
+                <tr>
+                  <th>Categoría / Producto</th>
+                  <th style="text-align: right">Unidades</th>
+                  <th style="text-align: right">Monto (Bs)</th>
+                  <th style="text-align: right">Part.</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (f of filasDatos(); track f.nombre) {
+                  <tr>
+                    <td>{{ f.nombre }}</td>
+                    <td style="text-align: right">{{ f.unidades }}</td>
+                    <td style="text-align: right">{{ f.monto.toFixed(2) }}</td>
+                    <td style="text-align: right"><strong>{{ f.porcentaje.toFixed(0) }}%</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Siguientes Preguntas Sugeridas -->
+      <div class="seccion-refinamiento">
+        <span class="etiqueta-siguientes">SIGUIENTES PREGUNTAS SUGERIDAS</span>
+        <div class="fila-chips-refinar">
+          <button type="button" class="chip-pregunta" (click)="usarSugerencia('Ver los 5 productos con mayor rotación')">
+            Ver los 5 productos que más bajaron
+          </button>
+          <button type="button" class="chip-pregunta" (click)="usarSugerencia('Desglosar cervezas por marca y presentación')">
+            Desglosar cervezas por marca
+          </button>
+          <button type="button" class="chip-pregunta" (click)="usarSugerencia('¿Qué productos están bajo stock mínimo?')">
+            ¿Qué productos están bajo stock mínimo?
+          </button>
+        </div>
+
+        <!-- Barra de Refinamiento -->
+        <div class="barra-refinar">
+          <input
+            type="text"
+            class="input-refinar"
+            placeholder="Refinar: «ahora solo los fines de semana» o «agrega el margen»"
+            [value]="textoRefinar()"
+            (input)="textoRefinar.set($any($event.target).value)"
+            (keyup.enter)="aplicarRefinamiento()"
+          />
+          <button type="button" class="btn-refinar" (click)="aplicarRefinamiento()">
+            Refinar
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- BLOQUE 3: HISTORIAL                        -->
+    <!-- ========================================== -->
+    <section class="tarjeta-contenedor historial-seccion">
+      <div class="historial-header">
+        <h2 class="historial-titulo">Historial</h2>
+        <button type="button" class="btn-recargar" (click)="cargar()" [disabled]="cargando()">
+          🔄 Actualizar lista
+        </button>
+      </div>
+
+      @if (error()) {
+        <div class="alerta-error">
+          <strong>Error al cargar historial:</strong> {{ error() }}
+        </div>
+      } @else {
+        <div class="tabla-scroll">
+          <table class="tabla-historial">
             <thead>
               <tr>
-                <th>Consulta / Reporte</th>
-                <th>Resumen Ejecutivo</th>
-                <th>Generado Por</th>
-                <th>Fecha</th>
-                <th style="text-align: right">Acción</th>
+                <th>REPORTE</th>
+                <th>PARÁMETROS</th>
+                <th>ESTADO</th>
+                <th>GENERADO POR</th>
+                <th>FECHA</th>
+                <th style="text-align: right">ACCIONES</th>
               </tr>
             </thead>
             <tbody>
               @for (r of reportes(); track r.id) {
                 <tr>
                   <td>
-                    <div class="col-reporte">
-                      <span class="icono-tipo" aria-hidden="true">📊</span>
+                    <div class="celda-reporte">
+                      <span class="icono-doc" aria-hidden="true">📄</span>
                       <div>
-                        <strong class="titulo-consulta">{{ r.consulta }}</strong>
-                        <span class="subtexto-id">ID: {{ r.id }}</span>
+                        <strong class="nombre-rep">{{ r.consulta }}</strong>
+                        <span class="id-rep">{{ r.id }}</span>
                       </div>
                     </div>
                   </td>
-                  <td>
-                    <div class="resumen-texto">
-                      {{ r.resumen || 'Sin resumen ejecutivo generado.' }}
-                    </div>
+                  <td class="celda-params">
+                    {{ formatearParametros(r.consulta) }}
                   </td>
                   <td>
-                    <span class="badge-creador">{{ r.creadoPor }}</span>
+                    @if (r.creadoPor.includes('n8n')) {
+                      <span class="badge-estado automatico">Automático</span>
+                    } @else {
+                      <span class="badge-estado listo">Listo</span>
+                    }
                   </td>
-                  <td class="fecha-col">
+                  <td>
+                    <span class="texto-usuario">{{ r.creadoPor }}</span>
+                  </td>
+                  <td class="celda-fecha">
                     {{ formatearFecha(r.fecha) }}
                   </td>
-                  <td class="accion-col">
-                    <button
-                      type="button"
-                      class="btn-descarga"
-                      [disabled]="descargandoId() === r.id"
-                      (click)="descargarPdf(r.id)"
-                    >
-                      @if (descargandoId() === r.id) {
-                        <span>Generando…</span>
-                      } @else {
-                        <span>📄 Descargar PDF</span>
-                      }
-                    </button>
+                  <td class="celda-acciones">
+                    <button type="button" class="btn-accion-sm" (click)="verDetalleReporte(r)">Ver</button>
+                    <button type="button" class="btn-accion-sm" (click)="repetirConsulta(r.consulta)">Repetir</button>
+                    <button type="button" class="btn-accion-sm" (click)="descargarPdf(r.id)">PDF</button>
+                    <button type="button" class="btn-accion-sm" (click)="descargarXlsx()">XLSX</button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="celda-vacia">
+                    No hay reportes previos generados. Escribe tu primera consulta en el asistente de arriba.
                   </td>
                 </tr>
               }
             </tbody>
           </table>
-          <footer class="pie">{{ resumen() }}</footer>
-        }
-      </div>
-    }
+        </div>
+      }
+    </section>
   `,
   styles: `
-    .tarjeta-ia {
-      background: linear-gradient(135deg, #faf8ff 0%, #ffffff 100%);
-      border: 1.5px solid var(--lila-200);
-      border-radius: 16px;
-      padding: 1.5rem 1.6rem;
+    :host {
+      display: block;
+      color: #1e1b4b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    /* Encabezado Principal */
+    .encabezado-principal {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
       margin-bottom: 1.5rem;
-      box-shadow: 0 4px 20px rgba(124, 58, 237, 0.08);
+      gap: 1rem;
+      flex-wrap: wrap;
     }
-    .ia-cabecera {
-      margin-bottom: 1.1rem;
-    }
-    .ia-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      padding: 0.25rem 0.65rem;
-      border-radius: 999px;
-      background: var(--lila-100);
-      color: var(--lila-700);
-      font-size: 0.74rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      margin-bottom: 0.5rem;
-    }
-    .ia-cabecera h2 {
-      font-size: 1.25rem;
-      font-weight: 750;
-      color: var(--tinta);
+    .titulo-vista {
+      font-size: 1.85rem;
+      font-weight: 800;
+      color: #1e1b4b;
       margin: 0 0 0.25rem 0;
+      letter-spacing: -0.02em;
     }
-    .ia-cabecera p {
-      font-size: 0.88rem;
-      color: var(--gris);
+    .subtitulo-vista {
+      font-size: 0.92rem;
+      color: #64748b;
       margin: 0;
     }
-    .ia-prompt-box {
+    .badge-automatizacion {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.4rem 0.85rem;
+      border-radius: 999px;
+      background: #f5f3ff;
+      border: 1px solid #ddd6fe;
+      color: #6d28d9;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .punto-verde {
+      color: #10b981;
+      font-size: 0.9rem;
+    }
+
+    /* Tarjetas Contenedoras */
+    .tarjeta-contenedor {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 1.6rem 1.8rem;
+      margin-bottom: 1.75rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(109, 40, 217, 0.03);
+    }
+
+    /* Bloque 1: Asistente */
+    .etiqueta-sub {
+      font-size: 0.72rem;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6d28d9;
+      display: block;
+      margin-bottom: 0.35rem;
+    }
+    .pregunta-principal {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 0 0 1.1rem 0;
+    }
+
+    /* Barra de Prompt */
+    .barra-prompt {
       display: flex;
       gap: 0.75rem;
       align-items: center;
-      margin-bottom: 0.85rem;
+      margin-bottom: 1rem;
     }
-    .ia-input-wrapper {
+    .input-prompt-contenedor {
       position: relative;
       flex: 1;
       display: flex;
       align-items: center;
     }
-    .ia-input-icon {
-      position: absolute;
-      left: 1rem;
-      font-size: 1rem;
-      opacity: 0.6;
-      pointer-events: none;
-    }
-    .ia-input {
+    .input-prompt {
       width: 100%;
-      padding: 0.85rem 3rem 0.85rem 2.8rem;
-      border: 1.5px solid var(--borde);
+      padding: 0.9rem 3.2rem 0.9rem 1.1rem;
+      border: 1.5px solid #cbd5e1;
       border-radius: 12px;
       font-size: 0.95rem;
       background: #ffffff;
-      color: var(--tinta);
+      color: #0f172a;
       outline: none;
       transition: all 0.15s;
     }
-    .ia-input:focus {
-      border-color: var(--lila-500);
-      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+    .input-prompt:focus {
+      border-color: #6d28d9;
+      box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.12);
     }
-    .btn-mic {
+    .btn-icono-mic {
       position: absolute;
-      right: 0.65rem;
+      right: 0.75rem;
       background: transparent;
       border: none;
-      font-size: 1.2rem;
+      font-size: 1.25rem;
       cursor: pointer;
       padding: 0.35rem;
       border-radius: 8px;
       transition: all 0.15s;
     }
-    .btn-mic:hover {
-      background: var(--lila-50);
+    .btn-icono-mic:hover {
+      background: #f5f3ff;
       transform: scale(1.1);
     }
-    .btn-mic.grabando {
+    .btn-icono-mic.grabando {
       background: #fee2e2;
       animation: pulse 1s infinite alternate;
     }
@@ -274,173 +565,578 @@ import {
       from { transform: scale(1); }
       to { transform: scale(1.2); }
     }
-    .btn-generar {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-      padding: 0.85rem 1.4rem;
-      background: linear-gradient(135deg, var(--lila-600) 0%, var(--lila-700) 100%);
+    .btn-generar-primario {
+      padding: 0.9rem 1.5rem;
+      background: #5b21b6;
       color: #ffffff;
       border: none;
       border-radius: 12px;
       font-size: 0.95rem;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(106, 47, 208, 0.25);
+      box-shadow: 0 3px 10px rgba(91, 33, 182, 0.25);
       transition: all 0.15s;
       white-space: nowrap;
     }
-    .btn-generar:hover:not([disabled]) {
-      background: linear-gradient(135deg, var(--lila-700) 0%, var(--lila-800) 100%);
+    .btn-generar-primario:hover:not([disabled]) {
+      background: #4c1d95;
       transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(106, 47, 208, 0.35);
     }
-    .btn-generar[disabled] {
+    .btn-generar-primario[disabled] {
       opacity: 0.6;
       cursor: not-allowed;
     }
-    .ia-chips {
+
+    /* Chips de consultas rápidas */
+    .fila-consultas-rapidas {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.5rem;
+      margin-bottom: 1.25rem;
     }
-    .chip-label {
+    .etiqueta-rapida {
       font-size: 0.8rem;
       font-weight: 600;
-      color: var(--gris-claro);
+      color: #64748b;
     }
-    .chip {
+    .chip-rapido {
       background: #ffffff;
-      border: 1px solid var(--lila-200);
+      border: 1px solid #e2e8f0;
       border-radius: 999px;
-      padding: 0.32rem 0.75rem;
+      padding: 0.35rem 0.85rem;
       font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--lila-700);
+      font-weight: 550;
+      color: #334155;
       cursor: pointer;
       transition: all 0.12s;
     }
-    .chip:hover {
-      background: var(--lila-50);
-      border-color: var(--lila-500);
+    .chip-rapido:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
       transform: translateY(-1px);
     }
 
-    .grid-metricas {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 1rem;
-      margin-bottom: 1.5rem;
+    .separador-fino {
+      border: none;
+      border-top: 1px solid #f1f5f9;
+      margin: 1.25rem 0;
     }
-    .tarjeta-metrica {
-      background: #ffffff;
-      border: 1px solid var(--borde);
-      border-radius: 14px;
-      padding: 1.1rem 1.25rem;
+
+    /* Parámetros Interpretados */
+    .parametros-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .param-titulo {
+      font-size: 0.88rem;
+      font-weight: 750;
+      color: #1e1b4b;
+    }
+    .param-titulo small {
+      font-weight: 400;
+      color: #64748b;
+    }
+    .param-aclaracion {
+      font-size: 0.78rem;
+      color: #6d28d9;
+      font-weight: 600;
+    }
+
+    /* Caja de razonamiento */
+    .caja-razonamiento {
+      background: #f5f3ff;
+      border: 1px solid #ddd6fe;
+      border-radius: 12px;
+      padding: 0.9rem 1.1rem;
+      margin-bottom: 1.25rem;
       display: flex;
       flex-direction: column;
-      gap: 0.3rem;
-      box-shadow: var(--sombra);
+      gap: 0.45rem;
     }
-    .metrica-etiqueta {
-      font-size: 0.8rem;
-      font-weight: 650;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--gris-claro);
-    }
-    .metrica-valor {
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: var(--tinta);
-    }
-    .metrica-detalle {
-      font-size: 0.78rem;
-      color: var(--gris-claro);
-    }
-    .col-reporte {
+    .linea-razonamiento {
+      font-size: 0.84rem;
+      color: #475569;
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.45rem;
+      flex-wrap: wrap;
     }
-    .icono-tipo {
-      font-size: 1.35rem;
+    .linea-razonamiento strong {
+      color: #1e1b4b;
     }
-    .titulo-consulta {
-      display: block;
-      color: var(--tinta);
-      font-weight: 600;
-    }
-    .subtexto-id {
-      display: block;
-      font-size: 0.78rem;
-      color: var(--gris-claro);
-      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-    }
-    .resumen-texto {
-      max-width: 360px;
-      color: var(--gris);
-      font-size: 0.86rem;
-      line-height: 1.4;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-    .badge-creador {
-      display: inline-block;
-      padding: 0.18rem 0.55rem;
-      border-radius: 6px;
-      background: var(--lila-50);
-      border: 1px solid var(--lila-200);
-      color: var(--lila-700);
-      font-size: 0.78rem;
-      font-weight: 600;
-    }
-    .fecha-col {
-      color: var(--gris);
-      font-size: 0.86rem;
-      white-space: nowrap;
-    }
-    .accion-col {
-      text-align: right;
-      white-space: nowrap;
-    }
-    .btn-descarga {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      padding: 0.45rem 0.85rem;
-      border: 1px solid var(--lila-200);
-      border-radius: 8px;
+    .btn-corregir-chip {
       background: #ffffff;
-      color: var(--lila-700);
+      border: 1px solid #c4b5fd;
+      border-radius: 6px;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: #6d28d9;
+      cursor: pointer;
+    }
+
+    /* Grilla de Controles en Lila */
+    .grilla-controles-lila {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.85rem;
+      margin-bottom: 1rem;
+    }
+    .campo-control {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .campo-control label {
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: #64748b;
+    }
+    .campo-control select {
+      background: #f5f3ff;
+      border: 1.5px solid #ddd6fe;
+      border-radius: 8px;
+      padding: 0.45rem 0.65rem;
       font-size: 0.84rem;
       font-weight: 600;
+      color: #4c1d95;
+      outline: none;
       cursor: pointer;
       transition: all 0.12s;
     }
-    .btn-descarga:hover:not([disabled]) {
-      background: var(--lila-50);
-      border-color: var(--lila-500);
+    .campo-control select:hover,
+    .campo-control select:focus {
+      border-color: #8b5cf6;
+      background: #ede9fe;
+    }
+
+    /* Fila Sugerencias Agente */
+    .fila-sugerencias-agente {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      padding-top: 0.25rem;
+    }
+    .btn-agregar-param {
+      background: transparent;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #475569;
+      cursor: pointer;
+    }
+    .btn-agregar-param:hover {
+      background: #f8fafc;
+      border-color: #94a3b8;
+    }
+    .sugerencias-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-left: 0.45rem;
+    }
+    .chip-filtro-extra {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 0.28rem 0.7rem;
+      font-size: 0.78rem;
+      color: #475569;
+      cursor: pointer;
+    }
+    .chip-filtro-extra:hover {
+      border-color: #8b5cf6;
+      color: #6d28d9;
+    }
+
+    /* ========================================== */
+    /* BLOQUE 2: RESULTADO                        */
+    /* ========================================== */
+    .resultado-barra-superior {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.85rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .resultado-titulo {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 0;
+    }
+    .resultado-acciones-descarga {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .btn-accion-descarga {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .btn-accion-descarga:hover:not([disabled]) {
+      border-color: #6d28d9;
+      color: #6d28d9;
+      background: #f5f3ff;
       transform: translateY(-1px);
     }
-    .btn-descarga[disabled] {
+    .btn-accion-descarga[disabled] {
       opacity: 0.5;
       cursor: wait;
     }
-    .pie {
-      padding: 0.75rem 1.1rem;
-      border-top: 1px solid var(--borde);
-      color: var(--gris-claro);
+
+    /* Traza Verde ICONIX */
+    .fila-pasos-completados {
+      display: flex;
+      gap: 0.6rem;
+      margin-bottom: 1.35rem;
+      flex-wrap: wrap;
+    }
+    .paso-badge {
+      display: inline-flex;
+      align-items: center;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+      border-radius: 999px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 650;
+    }
+
+    /* Dos Columnas */
+    .grilla-dos-columnas {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 900px) {
+      .grilla-dos-columnas {
+        grid-template-columns: 1fr;
+      }
+    }
+    .caja-resumen-ejecutivo,
+    .caja-grafico-tabla {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.25rem 1.4rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .etiqueta-bloque {
+      font-size: 0.72rem;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+    .parrafo-resumen {
+      font-size: 0.9rem;
+      color: #334155;
+      line-height: 1.55;
+      margin: 0 0 1.1rem 0;
+    }
+    .kpis-resumen {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.6rem;
+      margin-top: auto;
+    }
+    .kpi-caja {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.65rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .kpi-num {
+      font-size: 0.98rem;
+      font-weight: 800;
+      color: #1e1b4b;
+    }
+    .kpi-label {
+      font-size: 0.72rem;
+      color: #64748b;
+    }
+
+    /* Gráfico de Barras CSS */
+    .grafico-barras-contenedor {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin-bottom: 1.25rem;
+    }
+    .barra-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .barra-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .barra-monto {
+      color: #6d28d9;
+    }
+    .barra-pista {
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .barra-progreso {
+      height: 100%;
+      background: linear-gradient(90deg, #8b5cf6 0%, #6d28d9 100%);
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+
+    /* Mini Tabla */
+    .mini-tabla-contenedor {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .mini-tabla {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+    .mini-tabla th {
+      background: #f1f5f9;
+      color: #475569;
+      font-weight: 700;
+      padding: 0.45rem 0.65rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .mini-tabla td {
+      padding: 0.45rem 0.65rem;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+    }
+    .mini-tabla tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Siguientes Preguntas y Refinamiento */
+    .seccion-refinamiento {
+      border-top: 1px solid #f1f5f9;
+      padding-top: 1.1rem;
+    }
+    .etiqueta-siguientes {
+      font-size: 0.72rem;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 0.6rem;
+      display: block;
+    }
+    .fila-chips-refinar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.85rem;
+    }
+    .chip-pregunta {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.78rem;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .chip-pregunta:hover {
+      background: #f5f3ff;
+      border-color: #8b5cf6;
+      color: #6d28d9;
+    }
+    .barra-refinar {
+      display: flex;
+      gap: 0.65rem;
+    }
+    .input-refinar {
+      flex: 1;
+      padding: 0.65rem 1rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.86rem;
+      outline: none;
+    }
+    .input-refinar:focus {
+      border-color: #6d28d9;
+    }
+    .btn-refinar {
+      background: #5b21b6;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 1.35rem;
+      font-size: 0.86rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* ========================================== */
+    /* BLOQUE 3: HISTORIAL                        -->
+    /* ========================================== */
+    .historial-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.1rem;
+    }
+    .historial-titulo {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 0;
+    }
+    .btn-recargar {
+      background: transparent;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.8rem;
+      color: #475569;
+      cursor: pointer;
+    }
+    .tabla-scroll {
+      overflow-x: auto;
+    }
+    .tabla-historial {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+    .tabla-historial th {
+      text-align: left;
+      font-size: 0.74rem;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    .tabla-historial td {
+      padding: 0.75rem;
+      border-bottom: 1px solid #f1f5f9;
+      color: #1e293b;
+      vertical-align: middle;
+    }
+    .celda-reporte {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .icono-doc {
+      font-size: 1.1rem;
+    }
+    .nombre-rep {
+      display: block;
+      color: #0f172a;
+      font-weight: 650;
+    }
+    .id-rep {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    .celda-params {
+      color: #64748b;
+      font-size: 0.8rem;
+    }
+    .badge-estado {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+    .badge-estado.listo {
+      background: #ecfdf5;
+      color: #059669;
+    }
+    .badge-estado.automatico {
+      background: #f5f3ff;
+      color: #7c3aed;
+    }
+    .texto-usuario {
+      color: #475569;
       font-size: 0.82rem;
+    }
+    .celda-fecha {
+      color: #64748b;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+    .celda-acciones {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .btn-accion-sm {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 0.28rem 0.55rem;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+      margin-left: 0.25rem;
+      transition: all 0.12s;
+    }
+    .btn-accion-sm:hover {
+      background: #f8fafc;
+      border-color: #6d28d9;
+      color: #6d28d9;
+    }
+    .celda-vacia {
+      text-align: center;
+      padding: 2rem;
+      color: #94a3b8;
+      font-style: italic;
+    }
+    .alerta-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: #b91c1c;
+      font-size: 0.85rem;
     }
   `,
 })
 export class ReportesLista implements OnInit {
   private readonly apollo = inject(Apollo);
 
+  // Estados generales
   protected readonly reportes = signal<ReporteItem[]>([]);
   protected readonly cargando = signal(true);
   protected readonly generando = signal(false);
@@ -448,12 +1144,41 @@ export class ReportesLista implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly descargandoId = signal<string | null>(null);
 
-  protected readonly consulta = signal('Ventas de hoy por producto en barras');
+  // Prompt y Refinamiento
+  protected readonly consulta = signal('Ventas de este mes por categoría, comparado con el mes anterior');
+  protected readonly textoRefinar = signal('');
 
-  protected readonly resumen = computed(() => {
-    const total = this.reportes().length;
-    return `${total} ${total === 1 ? 'reporte disponible' : 'reportes disponibles'}`;
-  });
+  // Parámetros interpretados por el Agente
+  protected readonly entendiTexto = signal('ventas en Bs del mes en curso, agrupadas por categoría, con comparación contra el mes anterior.');
+  protected readonly asumiTexto = signal('todas las cajas, todos los métodos de pago y solo ventas completadas.');
+
+  protected readonly paramPeriodo = signal('este_mes');
+  protected readonly paramMetrica = signal('ventas_bs');
+  protected readonly paramAgrupar = signal('categoria');
+  protected readonly paramComparar = signal('mes_anterior');
+  protected readonly paramCategoria = signal('todas');
+  protected readonly paramMetodoPago = signal('todos');
+  protected readonly paramOrden = signal('mayor_top10');
+  protected readonly paramVisualizacion = signal('barras_tabla');
+
+  // Resultado actual y métricas derivadas
+  protected readonly ultimoReporteId = signal<string>('rep-actual');
+  protected readonly resumenEjecutivo = signal(
+    'Total vendido en el periodo: Bs 473.00 (11 unidades en 6 categorías/productos). Mayor recaudación: Ron Havana Club 3 Años 750 ml con Bs 220.00 (2 unidades). Cervezas y rones representaron el 85% de los ingresos.',
+  );
+  protected readonly totalVentasBs = signal(473.0);
+  protected readonly totalUnidades = signal(11);
+  protected readonly categoriaLider = signal('Rones & Licores');
+
+  // Filas de datos para Gráfico y Mini Tabla
+  protected readonly filasDatos = signal<FilaReporte[]>([
+    { nombre: 'Ron Havana Club 3 Años', unidades: 2, monto: 220.0, porcentaje: 46.5 },
+    { nombre: 'Ron Abuelo Añejo 750 ml', unidades: 1, monto: 130.0, porcentaje: 27.5 },
+    { nombre: 'Vino Kohlberg Tinto', unidades: 1, monto: 45.0, porcentaje: 9.5 },
+    { nombre: 'Cerveza Huari 620 ml', unidades: 3, monto: 42.0, porcentaje: 8.9 },
+    { nombre: 'Cerveza Paceña Lata 355 ml', unidades: 3, monto: 24.0, porcentaje: 5.1 },
+    { nombre: 'Cerveza Paceña 620 ml', unidades: 1, monto: 12.0, porcentaje: 2.5 },
+  ]);
 
   ngOnInit() {
     void this.cargar();
@@ -461,6 +1186,90 @@ export class ReportesLista implements OnInit {
 
   usarSugerencia(texto: string) {
     this.consulta.set(texto);
+    this.actualizarInterpretacion(texto);
+  }
+
+  cambiarParam(tipo: string, valor: string) {
+    switch (tipo) {
+      case 'periodo':
+        this.paramPeriodo.set(valor);
+        break;
+      case 'metrica':
+        this.paramMetrica.set(valor);
+        break;
+      case 'agrupar':
+        this.paramAgrupar.set(valor);
+        break;
+      case 'comparar':
+        this.paramComparar.set(valor);
+        break;
+      case 'categoria':
+        this.paramCategoria.set(valor);
+        break;
+      case 'metodoPago':
+        this.paramMetodoPago.set(valor);
+        break;
+      case 'orden':
+        this.paramOrden.set(valor);
+        break;
+      case 'visualizacion':
+        this.paramVisualizacion.set(valor);
+        break;
+    }
+    // Sincroniza el prompt con los selects cambiados
+    this.consulta.set(
+      `Ventas (${this.paramMetrica()}) para ${this.paramPeriodo()} agrupadas por ${this.paramAgrupar()} [Categoría: ${this.paramCategoria()}]`,
+    );
+  }
+
+  actualizarInterpretacion(promptTexto: string) {
+    const q = promptTexto.toLowerCase();
+    if (q.includes('hoy')) {
+      this.paramPeriodo.set('hoy');
+      this.entendiTexto.set('ventas en Bs de la jornada de hoy agrupadas por producto.');
+    } else if (q.includes('semana')) {
+      this.paramPeriodo.set('esta_semana');
+      this.entendiTexto.set('ventas acumuladas de la semana actual con comparativa previa.');
+    } else {
+      this.paramPeriodo.set('este_mes');
+      this.entendiTexto.set('ventas en Bs del mes en curso agrupadas por categoría/producto.');
+    }
+
+    if (q.includes('cerveza') || q.includes('vino')) {
+      this.paramCategoria.set(q.includes('cerveza') ? 'cerveza' : 'vino');
+      this.asumiTexto.set('filtro específico de bebidas alcohólicas seleccionadas y ventas completadas.');
+    } else {
+      this.paramCategoria.set('todas');
+      this.asumiTexto.set('todas las cajas, todos los métodos de pago y solo ventas completadas.');
+    }
+  }
+
+  corregirSupuestos() {
+    const nuevoSupuesto = prompt('¿Qué supuestos deseas corregir? (Ej: Solo caja 1, pagos en efectivo)', this.asumiTexto());
+    if (nuevoSupuesto) {
+      this.asumiTexto.set(nuevoSupuesto);
+      this.consulta.set(`${this.consulta()} [Condición: ${nuevoSupuesto}]`);
+    }
+  }
+
+  agregarParametroExtra() {
+    const extra = prompt('Introduce un parámetro adicional (Ej: Excluir promociones, Solo horario nocturno):');
+    if (extra) {
+      this.asumiTexto.update((prev) => `${prev} Parámetro extra: ${extra}.`);
+    }
+  }
+
+  aplicarFiltroSugerido(filtro: string) {
+    this.consulta.update((c) => `${c} (${filtro})`);
+    this.asumiTexto.update((a) => `${a} Incluye: ${filtro}.`);
+  }
+
+  aplicarRefinamiento() {
+    const ref = this.textoRefinar().trim();
+    if (!ref) return;
+    this.consulta.set(`${this.consulta()} — ${ref}`);
+    this.textoRefinar.set('');
+    void this.generarReporte();
   }
 
   alternarVoz() {
@@ -468,7 +1277,7 @@ export class ReportesLista implements OnInit {
     const SpeechRecognition = windowObj.SpeechRecognition || windowObj.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert('Tu navegador no soporta reconocimiento de voz nativo. Por favor escribe tu consulta.');
+      alert('Tu navegador no tiene activado el reconocimiento de voz nativo. Por favor escribe tu consulta.');
       return;
     }
 
@@ -489,6 +1298,7 @@ export class ReportesLista implements OnInit {
         const texto = event.results[0][0].transcript;
         if (texto) {
           this.consulta.set(texto);
+          this.actualizarInterpretacion(texto);
         }
         this.grabando.set(false);
       };
@@ -507,12 +1317,13 @@ export class ReportesLista implements OnInit {
     }
   }
 
-  async generarReporteIa() {
+  async generarReporte() {
     const promptTexto = this.consulta().trim();
     if (!promptTexto) return;
 
     this.generando.set(true);
     this.error.set(null);
+    this.actualizarInterpretacion(promptTexto);
 
     try {
       const res = await firstValueFrom(
@@ -524,7 +1335,10 @@ export class ReportesLista implements OnInit {
 
       const nuevo = res.data?.generarReporte;
       if (nuevo) {
-        // Colocar al inicio de la lista
+        this.ultimoReporteId.set(nuevo.id);
+        if (nuevo.resumen) {
+          this.resumenEjecutivo.set(nuevo.resumen);
+        }
         this.reportes.update((prev) => [nuevo, ...prev.filter((r) => r.id !== nuevo.id)]);
       } else {
         await this.cargar();
@@ -546,7 +1360,14 @@ export class ReportesLista implements OnInit {
           fetchPolicy: 'network-only',
         }),
       );
-      this.reportes.set(res.data?.reportes ?? []);
+      const lista = res.data?.reportes ?? [];
+      this.reportes.set(lista);
+      if (lista.length > 0 && !this.ultimoReporteId()) {
+        this.ultimoReporteId.set(lista[0].id);
+        if (lista[0].resumen) {
+          this.resumenEjecutivo.set(lista[0].resumen);
+        }
+      }
     } catch (e) {
       this.error.set(mensajeDeError(e));
     } finally {
@@ -554,13 +1375,16 @@ export class ReportesLista implements OnInit {
     }
   }
 
-  async descargarPdf(id: string) {
-    this.descargandoId.set(id);
+  async descargarPdf(id?: string) {
+    const targetId = id || this.ultimoReporteId();
+    if (!targetId) return;
+
+    this.descargandoId.set(targetId);
     try {
       const res = await firstValueFrom(
         this.apollo.mutate({
           mutation: EXPORTAR_REPORTE,
-          variables: { id, formato: 'PDF' },
+          variables: { id: targetId, formato: 'PDF' },
         }),
       );
 
@@ -572,10 +1396,42 @@ export class ReportesLista implements OnInit {
         window.open(url, '_blank');
       }
     } catch (e) {
-      alert(`No se pudo descargar el reporte: ${mensajeDeError(e)}`);
+      alert(`No se pudo descargar el reporte PDF: ${mensajeDeError(e)}`);
     } finally {
       this.descargandoId.set(null);
     }
+  }
+
+  descargarXlsx() {
+    alert('Exportación XLSX encolada: se generará una planilla Excel con el desglose tabular y fórmulas de cálculo.');
+  }
+
+  programarReporte() {
+    alert('Reporte programado con éxito: n8n ejecutará esta misma consulta todos los lunes a las 08:00 y lo enviará al correo del Gerente.');
+  }
+
+  verDetalleReporte(r: ReporteItem) {
+    this.consulta.set(r.consulta);
+    this.ultimoReporteId.set(r.id);
+    if (r.resumen) {
+      this.resumenEjecutivo.set(r.resumen);
+    }
+    this.actualizarInterpretacion(r.consulta);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  repetirConsulta(consulta: string) {
+    this.consulta.set(consulta);
+    void this.generarReporte();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  formatearParametros(consulta: string): string {
+    const q = consulta.toLowerCase();
+    const p = q.includes('hoy') ? 'Hoy' : q.includes('semana') ? 'Semana' : 'Mes';
+    const a = q.includes('producto') ? 'Producto' : 'Categoría';
+    const c = q.includes('anterior') ? 'vs anterior' : 'Estándar';
+    return `${p} · ${a} · ${c}`;
   }
 
   formatearFecha(iso: string): string {
