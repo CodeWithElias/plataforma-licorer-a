@@ -3,7 +3,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .env
-# Fotos del dataset de entrenamiento: no van a git
+# Modelos entrenados y fotos del dataset: no van a git (pesan mucho)
+/modelos/
 dataset/*
 !dataset/README.md
 dataset-prueba/

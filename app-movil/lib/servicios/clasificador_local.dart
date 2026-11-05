@@ -17,7 +17,7 @@ class ClasificadorLocal {
   final BaseLocal _base;
 
   static const int tamanoEntrada = 224;
-  static const String versionPorDefecto = '20261101-163914';
+  static const String versionPorDefecto = '20261104-095057';
 
   static const List<String> etiquetasPorDefecto = [
     'absolut_750',
@@ -27,25 +27,25 @@ class ClasificadorLocal {
     'pacena_620',
   ];
 
-  /// Pesos entrenados del modelo `20261101-163914` (100 % precisión de validación en las 5 clases).
+  /// Pesos entrenados del modelo con fotos reales (100 % precisión de validación en las 5 clases).
   static const List<List<double>> kernelPorDefecto = [
-    [41.3169, 29.1428, 32.3281, 46.3658, 46.3134],
-    [44.3404, 30.6257, 37.5877, 38.1941, 39.631],
-    [49.3206, 28.0957, 45.2523, 40.0892, 30.6],
-    [32.526, 5.1466, 6.937, 41.5946, 48.1961],
-    [44.5771, 5.1384, 21.2105, 13.1168, 39.0095],
-    [51.3942, 5.6933, 41.1738, 19.7274, 7.859],
-    [6.3545, 20.2592, 19.065, 2.9946, 3.7884],
-    [2.5552, 21.3622, 12.4428, 16.6847, 2.0576],
-    [3.8375, 19.0554, 4.0997, 12.8416, 20.6],
+    [-0.5007, 46.3261, 16.0457, 66.3745, 24.5434],
+    [29.9673, 33.2539, 20.5667, 34.2031, 14.4941],
+    [48.7117, 5.192, 32.3133, 14.8493, 16.8431],
+    [-22.0949, 23.0661, 60.5249, 65.9617, 23.2762],
+    [51.7807, 15.9741, 40.6688, 16.2405, -1.0583],
+    [51.852, 40.9761, 7.3051, 3.3768, 1.7733],
+    [21.6598, 30.9104, -4.0146, 9.6442, 19.3674],
+    [31.1667, 13.6514, -2.7738, 7.2144, 25.7652],
+    [30.3681, 11.9132, -6.38, 16.05, 23.5036],
   ];
 
   static const List<double> biasPorDefecto = [
-    -100.092,
-    -32.3104,
-    -59.2291,
-    -65.2052,
-    -74.3867,
+    -45.4268,
+    -43.9244,
+    -37.9815,
+    -64.7046,
+    -21.6809,
   ];
 
   String _version = versionPorDefecto;
