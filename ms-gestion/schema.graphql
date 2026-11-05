@@ -123,6 +123,7 @@ enum OrigenOrden { MANUAL AGENTE }
 type Reporte {
   id: ID!
   consulta: String!
+  datos: String
   tipoGrafico: String!
   resumen: String
   creadoPor: String!

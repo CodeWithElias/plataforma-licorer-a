@@ -3,6 +3,7 @@ import { gql } from 'apollo-angular';
 export interface ReporteItem {
   id: string;
   consulta: string;
+  datos?: string;
   tipoGrafico: string;
   resumen?: string;
   creadoPor: string;
@@ -21,6 +22,7 @@ export const LISTAR_REPORTES = gql<{ reportes: ReporteItem[] }, Record<string, n
     reportes {
       id
       consulta
+      datos
       tipoGrafico
       resumen
       creadoPor
@@ -43,6 +45,7 @@ export const GENERAR_REPORTE = gql<{ generarReporte: ReporteItem }, { consulta: 
     generarReporte(consulta: $consulta) {
       id
       consulta
+      datos
       tipoGrafico
       resumen
       creadoPor

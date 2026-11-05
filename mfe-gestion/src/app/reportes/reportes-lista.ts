@@ -1335,10 +1335,7 @@ export class ReportesLista implements OnInit {
 
       const nuevo = res.data?.generarReporte;
       if (nuevo) {
-        this.ultimoReporteId.set(nuevo.id);
-        if (nuevo.resumen) {
-          this.resumenEjecutivo.set(nuevo.resumen);
-        }
+        this.procesarReporteActivo(nuevo);
         this.reportes.update((prev) => [nuevo, ...prev.filter((r) => r.id !== nuevo.id)]);
       } else {
         await this.cargar();
@@ -1362,16 +1359,57 @@ export class ReportesLista implements OnInit {
       );
       const lista = res.data?.reportes ?? [];
       this.reportes.set(lista);
-      if (lista.length > 0 && !this.ultimoReporteId()) {
-        this.ultimoReporteId.set(lista[0].id);
-        if (lista[0].resumen) {
-          this.resumenEjecutivo.set(lista[0].resumen);
-        }
+      if (lista.length > 0) {
+        this.procesarReporteActivo(lista[0]);
       }
     } catch (e) {
       this.error.set(mensajeDeError(e));
     } finally {
       this.cargando.set(false);
+    }
+  }
+
+  procesarReporteActivo(r: ReporteItem) {
+    this.ultimoReporteId.set(r.id);
+    if (r.resumen) {
+      this.resumenEjecutivo.set(r.resumen);
+    }
+
+    if (r.datos) {
+      try {
+        const parsed = JSON.parse(r.datos);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          let sumaMonto = 0;
+          let sumaUnidades = 0;
+          const items: { nombre: string; unidades: number; monto: number }[] = [];
+
+          for (const item of parsed) {
+            const nombre = item['Producto'] || item['Categoría'] || item['Fecha'] || item['Cajero'] || 'Varios';
+            const unidades = Number(item['Unidades'] ?? 1);
+            const monto = Number(item['Monto (Bs)'] ?? item['total'] ?? item['monto'] ?? 0);
+            sumaMonto += monto;
+            sumaUnidades += unidades;
+            items.push({ nombre, unidades, monto });
+          }
+
+          if (sumaMonto > 0) {
+            this.totalVentasBs.set(sumaMonto);
+            this.totalUnidades.set(sumaUnidades);
+            const filas = items.map((it) => ({
+              nombre: it.nombre,
+              unidades: it.unidades,
+              monto: it.monto,
+              porcentaje: Math.min(100, Math.round((it.monto / sumaMonto) * 100)),
+            }));
+            this.filasDatos.set(filas);
+            if (filas.length > 0) {
+              this.categoriaLider.set(filas[0].nombre);
+            }
+          }
+        }
+      } catch {
+        // En caso de que no sea un json valido se mantienen datos previos
+      }
     }
   }
 
@@ -1412,10 +1450,7 @@ export class ReportesLista implements OnInit {
 
   verDetalleReporte(r: ReporteItem) {
     this.consulta.set(r.consulta);
-    this.ultimoReporteId.set(r.id);
-    if (r.resumen) {
-      this.resumenEjecutivo.set(r.resumen);
-    }
+    this.procesarReporteActivo(r);
     this.actualizarInterpretacion(r.consulta);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }

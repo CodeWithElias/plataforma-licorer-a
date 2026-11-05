@@ -56,6 +56,7 @@ function aGraphql(r: Reporte) {
   return {
     id: r.id,
     consulta: r.consulta,
+    datos: JSON.stringify(r.datos ?? []),
     tipoGrafico: r.tipoGrafico,
     resumen: r.resumen,
     creadoPor: r.creadoPor,
