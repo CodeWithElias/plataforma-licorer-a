@@ -24,6 +24,8 @@ caído, los agentes responden igual con su plan B sin LLM (texto armado con regl
 `docker compose logs -f ollama-init`. Para ver que ya está: `GET /health` → `components.ollama.modelos` incluye el modelo.
 Para cambiar de modelo, edita `OLLAMA_MODEL` y vuelve a correr `docker compose up -d ollama-init ms-ia`.
 
+**Agentes y MCP.** El servidor MCP (FastMCP, Streamable HTTP) está en `/mcp-server/mcp` y exige token. Los agentes son clientes MCP (`MCP_URL`): el de reabastecimiento deja que el LLM elija las tools de consulta y decida si pedir y cuánto; el de reportes hace que interprete el pedido. Todo lo que propone el LLM se valida: si el stock real no está bajo el mínimo no se compra nada, la cantidad tiene tope y `crear_orden_compra` no queda en sus manos. Si Ollama falla o pasan 240 s, siguen por reglas. Las respuestas dicen quién decidió: `decididoPor` e `interpretadoPor` (`llm` o `reglas`).
+
 ## Correrlo solo (desarrollo)
 
 ```sh

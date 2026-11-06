@@ -170,7 +170,8 @@ paths:
 
         Recibe la cola offline del POS y procesa cada venta con la misma Saga de POST /ventas, una por una.
         El `operationId` de cada venta hace de Idempotency-Key: si ya se procesó, responde DUPLICADO sin
-        ejecutar nada. La respuesta siempre es 200 y trae el resultado de cada ítem en el mismo orden;
+        ejecutar nada; si esa venta quedó CANCELADA responde ERROR con motivo VENTA_CANCELADA, para que el POS
+        no la borre sin avisar. La respuesta siempre es 200 y trae el resultado de cada ítem en el mismo orden;
         el POS borra de su cola los OK y DUPLICADO, y muestra los ERROR.
         Las ventas se guardan con `origen = OFFLINE` y con la fecha `fechaLocal` (si viene en el futuro, se usa la hora
         del servidor). Máximo 50 ventas por lote. El `Idempotency-Key` del lote es opcional: si se envía, un lote
@@ -351,7 +352,7 @@ components:
         motivo:
           type: string
           description: Presente en ERROR (mismo código que devolvería POST /ventas)
-          enum: [SIN_STOCK, PRODUCTO_NO_ENCONTRADO, SAGA_COMPENSADA, DATOS_INVALIDOS, ERROR_INTERNO]
+          enum: [SIN_STOCK, PRODUCTO_NO_ENCONTRADO, SAGA_COMPENSADA, VENTA_CANCELADA, DATOS_INVALIDOS, ERROR_INTERNO]
 
     Error:
       type: object

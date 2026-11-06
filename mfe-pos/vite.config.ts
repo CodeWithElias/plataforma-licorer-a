@@ -11,6 +11,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // TensorFlow.js pesa más que el límite por defecto de 2 MB y debe quedar disponible sin conexión
+      workbox: { maximumFileSizeToCacheInBytes: 6 * 1024 * 1024 },
       manifest: {
         name: 'Licorería – Punto de venta',
         short_name: 'POS',

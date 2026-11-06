@@ -1,12 +1,22 @@
 import { Module } from '@nestjs/common';
+import { ProveedoresModule } from '../proveedores/proveedores.module.js';
+import { CrearOrdenCompra, ListarOrdenesCompra } from './aplicacion/ordenes-compra.casos-de-uso.js';
+import { ORDEN_COMPRA_REPOSITORY } from './dominio/orden-compra.repository.js';
+import { MongoOrdenCompraRepository } from './infraestructura/mongo-orden-compra.repository.js';
+import { ComprasResolver } from './interfaces/compras.resolver.js';
 
 /**
  * Bounded context Compras. CU06 – Órdenes de compra (manuales o creadas por el agente de reabastecimiento) (colección ordenes_compra).
  *
  * Capas (DDD): dominio/ → aplicacion/ → infraestructura/ · interfaces/
- * Registrar aquí los resolvers (interfaces), casos de uso (aplicacion) y repositorios (infraestructura).
  */
 @Module({
-  providers: [],
+  imports: [ProveedoresModule],
+  providers: [
+    ComprasResolver,
+    CrearOrdenCompra,
+    ListarOrdenesCompra,
+    { provide: ORDEN_COMPRA_REPOSITORY, useClass: MongoOrdenCompraRepository },
+  ],
 })
 export class ComprasModule {}

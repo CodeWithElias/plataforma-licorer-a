@@ -11,6 +11,7 @@ lee ms-ia (POST /imagen/clasificar, GET /modelos/latest) y lo que descargan la a
 import argparse
 import datetime as dt
 import json
+import random
 import shutil
 import struct
 from pathlib import Path
@@ -26,22 +27,63 @@ except ImportError:
 TAMANOS_MOBILENET = (96, 128, 160, 192, 224)
 
 
-def cargar_dataset(carpeta: Path, tamano: int, lote: int):
-    comunes = dict(validation_split=0.2, seed=42, image_size=(tamano, tamano), batch_size=lote, label_mode="int")
-    entreno = tf.keras.utils.image_dataset_from_directory(carpeta, subset="training", **comunes)
-    validacion = tf.keras.utils.image_dataset_from_directory(carpeta, subset="validation", **comunes)
-    etiquetas = entreno.class_names
+EXTENSIONES = (".jpg", ".jpeg", ".png")
+FRACCION_VALIDACION = 0.2
 
-    # Aumento de datos solo al entrenar (distintos ángulos y luz, como pide la guía de fotos)
+
+def separar_por_clase(carpeta: Path, semilla: int = 42):
+    """Reparte las fotos de cada clase, así hasta la que tiene pocas queda representada en validación."""
+    azar = random.Random(semilla)
+    etiquetas = sorted(d.name for d in carpeta.iterdir() if d.is_dir())
+    entreno, validacion = [], []
+    for indice, etiqueta in enumerate(etiquetas):
+        fotos = sorted(str(f) for f in (carpeta / etiqueta).iterdir() if f.suffix.lower() in EXTENSIONES)
+        azar.shuffle(fotos)
+        separadas = max(1, round(len(fotos) * FRACCION_VALIDACION)) if len(fotos) > 1 else 0
+        validacion += [(f, indice) for f in fotos[:separadas]]
+        entreno += [(f, indice) for f in fotos[separadas:]]
+    return etiquetas, entreno, validacion
+
+
+def cargar_dataset(carpeta: Path, tamano: int, lote: int):
+    etiquetas, fotos_entreno, fotos_validacion = separar_por_clase(carpeta)
+
+    def leer(ruta, etiqueta):
+        imagen = tf.io.decode_image(tf.io.read_file(ruta), channels=3, expand_animations=False)
+        return tf.image.resize(imagen, (tamano, tamano)), etiqueta
+
+    def como_dataset(fotos):
+        rutas, indices = zip(*fotos)
+        return tf.data.Dataset.from_tensor_slices((list(rutas), list(indices)))
+
+    # Aumento de datos solo al entrenar. Sin espejo: invertiría el texto de las etiquetas, que distingue a los productos
     aumento = tf.keras.Sequential([
-        tf.keras.layers.RandomFlip("horizontal"),
         tf.keras.layers.RandomRotation(0.08),
         tf.keras.layers.RandomZoom(0.15),
         tf.keras.layers.RandomBrightness(0.2, value_range=(0, 255)),
         tf.keras.layers.RandomContrast(0.2),
     ])
-    entreno = entreno.map(lambda x, y: (aumento(x, training=True), y), num_parallel_calls=tf.data.AUTOTUNE)
-    return entreno.prefetch(tf.data.AUTOTUNE), validacion.prefetch(tf.data.AUTOTUNE), etiquetas
+    entreno = (
+        como_dataset(fotos_entreno).shuffle(len(fotos_entreno), seed=42).map(leer, num_parallel_calls=tf.data.AUTOTUNE)
+        .batch(lote).map(lambda x, y: (aumento(x, training=True), y), num_parallel_calls=tf.data.AUTOTUNE)
+    )
+    validacion = como_dataset(fotos_validacion).map(leer, num_parallel_calls=tf.data.AUTOTUNE).batch(lote)
+
+    # Las clases con menos fotos pesan más para que el modelo no las ignore
+    conteo = np.bincount([i for _, i in fotos_entreno], minlength=len(etiquetas))
+    pesos = {i: len(fotos_entreno) / (len(etiquetas) * max(1, n)) for i, n in enumerate(conteo)}
+    print(f"Entrenamiento: {dict(zip(etiquetas, conteo.tolist()))} · validación: {len(fotos_validacion)} fotos")
+    return entreno.prefetch(tf.data.AUTOTUNE), validacion.prefetch(tf.data.AUTOTUNE), etiquetas, pesos
+
+
+def precision_por_clase(modelo, validacion, etiquetas: list[str]) -> dict[str, float | None]:
+    aciertos, totales = np.zeros(len(etiquetas)), np.zeros(len(etiquetas))
+    for imagenes, reales in validacion:
+        predichas = np.argmax(modelo.predict(imagenes, verbose=0), axis=1)
+        for real, predicha in zip(reales.numpy(), predichas):
+            totales[real] += 1
+            aciertos[real] += real == predicha
+    return {e: round(float(a / t), 4) if t else None for e, a, t in zip(etiquetas, aciertos, totales)}
 
 
 def construir_modelo(tamano: int, clases: int):
@@ -224,38 +266,34 @@ def main():
     p.add_argument("--sin-tfjs", action="store_true", help="no exportar a TF.js")
     a = p.parse_args()
 
+    if tf is None:
+        raise SystemExit("Falta TensorFlow (pip install -r entrenamiento/requirements.txt). No se genera ningún modelo.")
+
     version = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     destino = a.salida / version
     destino.mkdir(parents=True, exist_ok=True)
 
-    if tf is not None:
-        entreno, validacion, etiquetas = cargar_dataset(a.dataset, a.tamano, a.lote)
-        print(f"Clases ({len(etiquetas)}): {etiquetas}")
+    entreno, validacion, etiquetas, pesos = cargar_dataset(a.dataset, a.tamano, a.lote)
+    print(f"Clases ({len(etiquetas)}): {etiquetas}")
 
-        modelo, base = construir_modelo(a.tamano, len(etiquetas))
-        modelo.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="sparse_categorical_crossentropy", metrics=["accuracy"])
-        parar = tf.keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=4, restore_best_weights=True)
-        modelo.fit(entreno, validation_data=validacion, epochs=a.epocas, callbacks=[parar])
+    modelo, base = construir_modelo(a.tamano, len(etiquetas))
+    modelo.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+    parar = tf.keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=4, restore_best_weights=True)
+    modelo.fit(entreno, validation_data=validacion, epochs=a.epocas, callbacks=[parar], class_weight=pesos)
 
-        if a.afinar > 0:
-            base.trainable = True
-            for capa in base.layers[:-30]:   # solo se reentrenan las últimas 30 capas
-                capa.trainable = False
-            modelo.compile(optimizer=tf.keras.optimizers.Adam(1e-5), loss="sparse_categorical_crossentropy", metrics=["accuracy"])
-            modelo.fit(entreno, validation_data=validacion, epochs=a.afinar, callbacks=[parar])
+    if a.afinar > 0:
+        base.trainable = True
+        for capa in base.layers[:-30]:   # solo se reentrenan las últimas 30 capas
+            capa.trainable = False
+        modelo.compile(optimizer=tf.keras.optimizers.Adam(1e-5), loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+        modelo.fit(entreno, validation_data=validacion, epochs=a.afinar, callbacks=[parar], class_weight=pesos)
 
-        _, precision = modelo.evaluate(validacion, verbose=0)
-        tflite = tf.lite.TFLiteConverter.from_keras_model(modelo).convert()
-        (destino / "modelo.tflite").write_bytes(tflite)
-        (destino / "etiquetas.txt").write_text("\n".join(etiquetas) + "\n", encoding="utf-8")
-        con_tfjs = False if a.sin_tfjs else exportar_tfjs(modelo, destino / "tfjs")
-    else:
-        etiquetas, precision, tflite, kernel, bias = entrenar_sin_tf(a.dataset, a.tamano, a.epocas)
-        print(f"Clases ({len(etiquetas)}): {etiquetas}")
-        (destino / "modelo.tflite").write_bytes(tflite)
-        np.savez(destino / "pesos.npz", kernel=kernel, bias=bias)
-        (destino / "etiquetas.txt").write_text("\n".join(etiquetas) + "\n", encoding="utf-8")
-        con_tfjs = False if a.sin_tfjs else exportar_tfjs_directo(kernel, bias, a.tamano, destino / "tfjs")
+    _, precision = modelo.evaluate(validacion, verbose=0)
+    por_clase = precision_por_clase(modelo, validacion, etiquetas)
+    tflite = tf.lite.TFLiteConverter.from_keras_model(modelo).convert()
+    (destino / "modelo.tflite").write_bytes(tflite)
+    (destino / "etiquetas.txt").write_text("\n".join(etiquetas) + "\n", encoding="utf-8")
+    con_tfjs = False if a.sin_tfjs else exportar_tfjs(modelo, destino / "tfjs")
 
     if not con_tfjs:
         shutil.rmtree(destino / "tfjs", ignore_errors=True)
@@ -266,11 +304,13 @@ def main():
         "etiquetas": etiquetas,
         "tamano": a.tamano,
         "precisionValidacion": round(float(precision), 4),
+        "precisionPorClase": por_clase,
         "tfjs": con_tfjs,
     }
     (destino / "info.json").write_text(json.dumps(info, indent=2, ensure_ascii=False), encoding="utf-8")
     (a.salida / "latest.json").write_text(json.dumps(info, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Modelo {version}: precisión de validación {precision:.1%} -> {destino}")
+    print(f"Precisión por clase: {por_clase}")
     if precision < 0.8:
         print("Aviso: la precisión es menor al 80 % que pide la prueba de CU04 (más fotos, fondo neutro o menos productos)")
 

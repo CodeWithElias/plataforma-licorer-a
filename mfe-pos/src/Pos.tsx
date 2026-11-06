@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   type ItemCarrito,
   listarProductos,
   mensajeDeVenta,
   type MetodoPago,
   type Producto,
+  servidorDisponible,
+  sincronizarVentasLote,
   totalCarrito,
   vender,
 } from './api';
 import { ColaOfflineModal } from './ColaOfflineModal';
-import { contarVentasOffline, guardarVentaOffline } from './db/indexed-db';
+import { contarVentasOffline, guardarVentaOffline, listarVentasOffline } from './db/indexed-db';
 import { estilos } from './estilos';
 import { type PrediccionLocal } from './clasificadorTfjs';
 import EscanerCamara from './EscanerCamara';
@@ -57,14 +59,44 @@ export default function Pos() {
     contarVentasOffline().then(setColaCount).catch(() => {});
   };
 
-  useEffect(() => {
-    const handleOnline = () => {
-      setEnLinea(true);
+  const sincronizando = useRef(false);
+
+  /** Revisa si el servidor responde y, si responde, envía las ventas pendientes de la cola (CU03). */
+  const comprobarConexion = async () => {
+    if (!navigator.onLine) {
+      setEnLinea(false);
+      return;
+    }
+    const disponible = await servidorDisponible();
+    setEnLinea(disponible);
+    if (!disponible || sincronizando.current) return;
+
+    sincronizando.current = true;
+    try {
+      const pendientes = (await listarVentasOffline()).filter((v) => v.estadoSync === 'PENDIENTE');
+      if (pendientes.length > 0) {
+        const r = await sincronizarVentasLote(pendientes);
+        setAviso({
+          tipo: r.errores > 0 ? 'error' : 'ok',
+          titulo: 'Ventas offline sincronizadas',
+          texto: `${r.exitosas} registradas, ${r.duplicadas} ya existían, ${r.errores} con error (revisa Cola Offline).`,
+        });
+      }
+    } catch {
+      // Se reintenta en la siguiente comprobación
+    } finally {
+      sincronizando.current = false;
       refrescarCola();
-    };
+    }
+  };
+
+  useEffect(() => {
+    const handleOnline = () => void comprobarConexion();
     const handleOffline = () => {
       setEnLinea(false);
     };
+    const revision = window.setInterval(() => void comprobarConexion(), 30000);
+    void comprobarConexion();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -79,6 +111,7 @@ export default function Pos() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.clearInterval(revision);
     };
   }, []);
 

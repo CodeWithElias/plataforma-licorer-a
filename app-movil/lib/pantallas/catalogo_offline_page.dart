@@ -18,6 +18,10 @@ class _CatalogoOfflinePageState extends State<CatalogoOfflinePage> {
   String _tipoSeleccionado = '';
   bool _sincronizando = false;
   bool? _ultimaSyncOnline;
+  List<ProductoConStock> _items = const [];
+  List<String> _tipos = const [];
+  String _versionModelo = '';
+  String _ultimaSync = 'Semilla local';
 
   @override
   void initState() {
@@ -28,12 +32,29 @@ class _CatalogoOfflinePageState extends State<CatalogoOfflinePage> {
   Future<void> _cargarInicial() async {
     await widget.api.baseLocal.inicializar();
     await widget.api.clasificadorLocal.inicializar();
-    if (mounted) setState(() {});
+    await _consultar();
+  }
+
+  /// Lee de SQLite lo que muestra la pantalla, con la búsqueda y el filtro actuales.
+  Future<void> _consultar() async {
+    final base = widget.api.baseLocal;
+    final items = await base.listarProductos(busqueda: _busqueda, tipo: _tipoSeleccionado);
+    final tipos = await base.tiposDisponibles();
+    final version = await base.obtenerSyncInfo('version_modelo');
+    final ultimaSync = await base.obtenerSyncInfo('ultima_sync');
+    if (!mounted) return;
+    setState(() {
+      _items = items;
+      _tipos = tipos;
+      _versionModelo = version ?? widget.api.clasificadorLocal.version;
+      _ultimaSync = ultimaSync ?? 'Semilla local';
+    });
   }
 
   Future<void> _sincronizar() async {
     setState(() => _sincronizando = true);
     final ok = await widget.api.sincronizarDatosOffline();
+    await _consultar();
     if (!mounted) return;
     setState(() {
       _sincronizando = false;
@@ -52,11 +73,10 @@ class _CatalogoOfflinePageState extends State<CatalogoOfflinePage> {
 
   @override
   Widget build(BuildContext context) {
-    final base = widget.api.baseLocal;
-    final items = base.listarProductos(busqueda: _busqueda, tipo: _tipoSeleccionado);
-    final tipos = base.tiposDisponibles();
-    final versionModelo = base.obtenerSyncInfo('version_modelo') ?? widget.api.clasificadorLocal.version;
-    final ultimaSync = base.obtenerSyncInfo('ultima_sync') ?? 'Semilla local';
+    final items = _items;
+    final tipos = _tipos;
+    final versionModelo = _versionModelo;
+    final ultimaSync = _ultimaSync;
 
     return Scaffold(
       appBar: AppBar(
@@ -102,7 +122,10 @@ class _CatalogoOfflinePageState extends State<CatalogoOfflinePage> {
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
-              onChanged: (valor) => setState(() => _busqueda = valor),
+              onChanged: (valor) {
+                _busqueda = valor;
+                _consultar();
+              },
             ),
           ),
           SingleChildScrollView(
@@ -115,7 +138,10 @@ class _CatalogoOfflinePageState extends State<CatalogoOfflinePage> {
                   child: ChoiceChip(
                     label: const Text('Todos'),
                     selected: _tipoSeleccionado.isEmpty,
-                    onSelected: (_) => setState(() => _tipoSeleccionado = ''),
+                    onSelected: (_) {
+                      _tipoSeleccionado = '';
+                      _consultar();
+                    },
                   ),
                 ),
                 for (final t in tipos)
@@ -124,7 +150,10 @@ class _CatalogoOfflinePageState extends State<CatalogoOfflinePage> {
                     child: ChoiceChip(
                       label: Text(t),
                       selected: _tipoSeleccionado == t,
-                      onSelected: (_) => setState(() => _tipoSeleccionado = t),
+                      onSelected: (_) {
+                        _tipoSeleccionado = t;
+                        _consultar();
+                      },
                     ),
                   ),
               ],

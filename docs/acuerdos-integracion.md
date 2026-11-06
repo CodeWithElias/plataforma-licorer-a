@@ -79,8 +79,8 @@ Workflow `n8n/workflows/cu06-reabastecimiento.json`.
    cuando el producto vuelve a quedar en o sobre el mínimo.
 2. n8n pide un token con su cliente `n8n` (credencial OAuth2 *Client Credentials* que se crea sola desde
    `n8n/.env`) y llama a `POST http://ms-ia:8002/agentes/reabastecimiento` con
-   `{ productoCodigo, nombre, cantidad, minimo }`. Espera hasta 120 s.
-3. Lo que n8n espera del agente (Dev 3): `200 { ordenCreada: bool, numero?: string, lineas?: [{ productoCodigo, cantidad, precioUnitario }], motivo?: string }`.
+   `{ productoCodigo, nombre, cantidad, minimo }`. Espera hasta 300 s.
+3. Respuesta del agente: `200 { ordenCreada: bool, numero?: string, lineas?: [{ productoCodigo, cantidad, precioUnitario }], motivo: string, decididoPor: "llm" | "reglas", herramientasUsadas: string[] }`. El LLM en CPU puede tardar minutos: n8n y Nginx esperan hasta 300 s.
 4. Correo al gerente (`GERENTE_EMAIL`):
    - `ordenCreada = true`: "Orden de compra {numero} creada" con las líneas.
    - `ordenCreada = false`: aviso de stock bajo con el `motivo` del agente.

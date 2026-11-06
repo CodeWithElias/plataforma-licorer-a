@@ -6,6 +6,7 @@ que invocó al agente o al endpoint MCP (ver docs/tools-mcp.md y docs/acuerdos-i
 
 from contextlib import contextmanager
 from contextvars import ContextVar
+import functools
 import json
 import os
 import re
@@ -14,7 +15,14 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import get_http_headers
+from starlette.middleware import Middleware
+from starlette.responses import JSONResponse
+
 from app.errores import ErrorApi
+from app.seguridad import validar_token
 
 _token_ctx: ContextVar[str] = ContextVar("token_mcp", default="")
 
@@ -116,18 +124,31 @@ def _peticion_graphql(query: str, variables: dict[str, Any] | None = None, token
     return respuesta.get("data") or {}
 
 
+class _ExigirToken:
+    """El endpoint MCP exige un token válido, igual que las demás rutas de ms-ia."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            encabezado = dict(scope["headers"]).get(b"authorization", b"").decode()
+            try:
+                validar_token(encabezado.removeprefix("Bearer ").strip())
+            except ErrorApi as e:
+                respuesta = JSONResponse({"codigo": e.codigo, "mensaje": e.mensaje}, status_code=e.estado)
+                await respuesta(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 class _RegistroMcp:
-    """Envoltorio que registra las tools tanto en FastMCP (si está instalado) como en un catálogo local."""
+    """Servidor FastMCP con las tools del proyecto y un catálogo de sus esquemas para la API REST de consulta."""
 
     def __init__(self, nombre: str):
         self.nombre = nombre
         self._tools: dict[str, tuple[Callable, dict[str, Any]]] = {}
-        self._fastmcp = None
-        try:
-            from fastmcp import FastMCP  # type: ignore
-            self._fastmcp = FastMCP(nombre)
-        except ImportError:
-            self._fastmcp = None
+        self._fastmcp = FastMCP(nombre)
 
     def registrar(self, nombre: str, descripcion: str, parametros: dict[str, Any]):
         def decorador(fn: Callable):
@@ -141,14 +162,27 @@ class _RegistroMcp:
                 },
             }
             self._tools[nombre] = (fn, esquema)
-            if self._fastmcp is not None:
-                try:
-                    self._fastmcp.tool(name=nombre, description=descripcion)(fn)
-                except Exception:
-                    pass
+
+            # Cada llamada por MCP usa el token que trae su petición y devuelve los errores en un formato que
+            # el cliente puede volver a convertir en ErrorMcp
+            @functools.wraps(fn)
+            def herramienta(*args, **kwargs):
+                autorizacion = get_http_headers(include={"authorization"}).get("authorization", "")
+                token = autorizacion.removeprefix("Bearer ").strip() or obtener_token_actual()
+                with usar_token_mcp(token):
+                    try:
+                        return fn(*args, **kwargs)
+                    except ErrorMcp as e:
+                        raise ToolError(json.dumps({"status": e.estado, "codigo": e.codigo, "mensaje": e.mensaje})) from e
+
+            self._fastmcp.tool(name=nombre, description=descripcion)(herramienta)
             return fn
 
         return decorador
+
+    def app_http(self):
+        """Aplicación ASGI con el protocolo MCP (Streamable HTTP) para montarla en FastAPI."""
+        return self._fastmcp.http_app(path="/mcp", stateless_http=True, json_response=True, middleware=[Middleware(_ExigirToken)])
 
     def listar_tools(self) -> list[dict[str, Any]]:
         return [esquema for _, esquema in self._tools.values()]
@@ -198,7 +232,7 @@ def buscar_producto(consulta: str = "", tipo: str | None = None) -> list[dict[st
             prod = _peticion_json(f"{_url_inventario()}/productos/{codigo}", servicio="ms-inventario")
             return [_formatear_producto(prod)] if isinstance(prod, dict) else []
         except ErrorMcp as e:
-            if e.status == 404 or e.codigo in ("PRODUCTO_NO_ENCONTRADO", "NO_ENCONTRADO"):
+            if e.estado == 404 or e.codigo in ("PRODUCTO_NO_ENCONTRADO", "NO_ENCONTRADO"):
                 return []
             raise
 

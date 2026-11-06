@@ -26,7 +26,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 scratch/
-
+modelos/
+dataset/
 
 plan de implementacion (iconix).docx
 pla-implementacion-dev1.docx
+dataset-descartado/

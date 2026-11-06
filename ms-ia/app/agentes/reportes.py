@@ -10,13 +10,9 @@ import datetime as dt
 import re
 from typing import Any, TypedDict
 
-from app.agentes.llm import ConstructorGrafo, consultar_ollama
-from app.mcp import (
-    buscar_producto,
-    stock_actual,
-    usar_token_mcp,
-    ventas_por_periodo,
-)
+from app.agentes.llm import ConstructorGrafo, consultar_json, consultar_ollama
+from app.mcp import usar_token_mcp
+from app.mcp.cliente import buscar_producto, stock_actual, ventas_por_periodo
 
 
 class EstadoReporte(TypedDict, total=False):
@@ -34,6 +30,7 @@ class EstadoReporte(TypedDict, total=False):
     unidadesTotales: int
     resumen: str
     reporteId: str | None
+    interpretadoPor: str         # "llm" | "reglas"
 
 
 _MAPA_TIPOS = {
@@ -81,7 +78,8 @@ def _detectar_rango_fechas(texto: str, desde_explicito: str | None, hasta_explic
         return dia_dt.isoformat(), sig_dt.isoformat()
 
     if "hoy" in q or "día de hoy" in q or "dia de hoy" in q:
-        inicio = ahora - dt.timedelta(days=1)
+        bolivia = dt.timezone(dt.timedelta(hours=-4))
+        inicio = ahora.astimezone(bolivia).replace(hour=0, minute=0, second=0, microsecond=0)
     elif "mes" in q or "30 d" in q or "treinta d" in q:
         inicio = ahora - dt.timedelta(days=30)
     elif "año" in q or "anio" in q or "anual" in q:
@@ -94,6 +92,56 @@ def _detectar_rango_fechas(texto: str, desde_explicito: str | None, hasta_explic
         desde_explicito or inicio.isoformat(timespec="seconds"),
         hasta_explicito or ahora.isoformat(timespec="seconds"),
     )
+
+
+SISTEMA_INTERPRETE = """Eres el intérprete de pedidos de reportes de una licorería. Conviertes el pedido del gerente,
+escrito o dictado con sus propias palabras, en un objeto JSON con exactamente estas claves:
+- "fuente": "ventas" si pregunta por lo vendido, ingresos o recaudación; "stock" si pregunta por lo que hay, lo que queda, lo que se acaba o el inventario.
+- "agrupacion": "fecha" solo si pide la evolución, la tendencia o el detalle por día; en cualquier otro caso, "producto".
+- "tipoFiltro": "CERVEZA", "VINO", "SINGANI", "RON", "WHISKY", "VODKA" u "OTRO" si pide un tipo de bebida; si no, null.
+- "soloBajoMinimo": true solo si pide lo que está por agotarse, bajo el mínimo o por reponer.
+- "tipoGrafico": "barras", "lineas", "torta" o "tabla". Si no lo pide, elige el más adecuado.
+- "periodo": "hoy", "ayer", "semana", "mes" o "anio". Si no lo dice, "semana".
+Ejemplos:
+"qué se está por acabar" -> {"fuente":"stock","agrupacion":"producto","tipoFiltro":null,"soloBajoMinimo":true,"tipoGrafico":"tabla","periodo":"semana"}
+"cuánto queda de whisky" -> {"fuente":"stock","agrupacion":"producto","tipoFiltro":"WHISKY","soloBajoMinimo":false,"tipoGrafico":"barras","periodo":"semana"}
+"ventas de ron de este mes" -> {"fuente":"ventas","agrupacion":"producto","tipoFiltro":"RON","soloBajoMinimo":false,"tipoGrafico":"barras","periodo":"mes"}
+"cómo fueron las ventas día a día esta semana" -> {"fuente":"ventas","agrupacion":"fecha","tipoFiltro":null,"soloBajoMinimo":false,"tipoGrafico":"lineas","periodo":"semana"}
+Responde solo con el objeto JSON."""
+
+
+def _rango_de_periodo(periodo: str) -> tuple[str, str]:
+    bolivia = dt.timezone(dt.timedelta(hours=-4))
+    ahora = dt.datetime.now(bolivia)
+    hoy = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    if periodo == "hoy":
+        return hoy.isoformat(), ahora.isoformat(timespec="seconds")
+    if periodo == "ayer":
+        return (hoy - dt.timedelta(days=1)).isoformat(), hoy.isoformat()
+    dias = {"mes": 30, "anio": 365}.get(periodo, 7)
+    return (ahora - dt.timedelta(days=dias)).isoformat(timespec="seconds"), ahora.isoformat(timespec="seconds")
+
+
+def _interpretar_con_llm(consulta: str) -> dict[str, Any]:
+    """Los campos que el LLM devolvió bien; lo inválido se ignora y queda lo que resolvieron las reglas."""
+    r = consultar_json(f'Pedido: "{consulta}"', SISTEMA_INTERPRETE)
+    if not r:
+        return {}
+    valido: dict[str, Any] = {"interpretadoPor": "llm"}
+    if r.get("fuente") in ("ventas", "stock"):
+        valido["fuente"] = r["fuente"]
+    if r.get("agrupacion") in ("producto", "fecha"):
+        valido["agrupacion"] = r["agrupacion"]
+    if r.get("tipoFiltro") is None or r.get("tipoFiltro") in ("CERVEZA", "VINO", "SINGANI", "RON", "WHISKY", "VODKA", "OTRO"):
+        valido["tipoFiltro"] = r.get("tipoFiltro")
+    if isinstance(r.get("soloBajoMinimo"), bool):
+        valido["soloBajoMinimo"] = r["soloBajoMinimo"]
+    if r.get("tipoGrafico") in ("barras", "lineas", "torta", "tabla"):
+        valido["tipoGrafico"] = r["tipoGrafico"]
+    # Una fecha escrita en el pedido la resuelven las reglas: es exacta y no depende del modelo
+    if not re.search(r"\d{4}-\d{2}-\d{2}", consulta) and r.get("periodo") in ("hoy", "ayer", "semana", "mes", "anio"):
+        valido["desde"], valido["hasta"] = _rango_de_periodo(r["periodo"])
+    return valido
 
 
 def _nodo_interpretar_peticion(estado: EstadoReporte) -> dict[str, Any]:
@@ -113,7 +161,7 @@ def _nodo_interpretar_peticion(estado: EstadoReporte) -> dict[str, Any]:
             break
 
     desde, hasta = _detectar_rango_fechas(consulta, estado.get("desde"), estado.get("hasta"))
-    return {
+    interpretacion = {
         "fuente": "stock" if es_stock else "ventas",
         "agrupacion": agrupacion,
         "tipoFiltro": tipo_filtro,
@@ -121,7 +169,12 @@ def _nodo_interpretar_peticion(estado: EstadoReporte) -> dict[str, Any]:
         "tipoGrafico": tipo_grafico,
         "desde": desde,
         "hasta": hasta,
+        "interpretadoPor": "reglas",
     }
+    interpretacion.update(_interpretar_con_llm(consulta))
+    if estado.get("desde") and estado.get("hasta"):   # fechas explícitas de quien llama
+        interpretacion["desde"], interpretacion["hasta"] = estado["desde"], estado["hasta"]
+    return interpretacion
 
 
 def _nodo_ejecutar_tools_mcp(estado: EstadoReporte) -> dict[str, Any]:
@@ -312,4 +365,5 @@ def ejecutar_agente_reportes(
         "tipoGrafico": final.get("tipoGrafico", "barras"),
         "resumen": final.get("resumen", ""),
         "reporteId": final.get("reporteId"),
+        "interpretadoPor": final.get("interpretadoPor", "reglas"),
     }

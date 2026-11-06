@@ -66,6 +66,15 @@ async function pedir(url: string, opciones: RequestInit = {}): Promise<Response>
   return fetch(url, { ...opciones, headers: { ...opciones.headers, Authorization: `Bearer ${token}` } });
 }
 
+/** ¿Responde el servidor? La red del navegador puede estar bien y el gateway o ms-ventas caídos. */
+export async function servidorDisponible(): Promise<boolean> {
+  try {
+    return (await fetch(`${API_VENTAS}/health`, { cache: 'no-store' })).ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function listarProductos(): Promise<Producto[]> {
   try {
     const r = await pedir(`${API_INVENTARIO}/productos`);

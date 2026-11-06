@@ -29,12 +29,12 @@ class Prediccion {
   final String? modelo;
   final bool modoOffline;
 
-  factory Prediccion.desdeJson(Map<String, dynamic> j, {BaseLocal? baseLocal}) {
+  static Future<Prediccion> desdeJson(Map<String, dynamic> j, {BaseLocal? baseLocal}) async {
     final etiqueta = j['etiqueta'] as String;
     final codigo = j['productoCodigo'] as String?;
     final itemLocal = codigo != null
-        ? baseLocal?.buscarPorCodigo(codigo)
-        : baseLocal?.buscarPorEtiqueta(etiqueta);
+        ? await baseLocal?.buscarPorCodigo(codigo)
+        : await baseLocal?.buscarPorEtiqueta(etiqueta);
     return Prediccion(
       etiqueta: etiqueta,
       confianza: (j['confianza'] as num).toDouble(),
@@ -93,7 +93,7 @@ class Api {
       if (r.statusCode != 200) {
         throw ErrorApi(cuerpo['codigo'] as String? ?? 'ERROR', cuerpo['mensaje'] as String? ?? 'Error ${r.statusCode}');
       }
-      return Prediccion.desdeJson(cuerpo, baseLocal: baseLocal);
+      return await Prediccion.desdeJson(cuerpo, baseLocal: baseLocal);
     } catch (_) {
       // Fallback automático a inferencia TFLite en el dispositivo cuando no hay red (modo avión)
       return clasificadorLocal.clasificarImagenBytes(jpg);

@@ -4,8 +4,13 @@ from fastapi import FastAPI
 
 from app.api import agentes_api, imagen, mcp_api, modelos, sistema, video
 from app.errores import registrar_manejadores
+from app.mcp import mcp_servidor
+
+# Protocolo MCP en /mcp-server/mcp: lo usan los agentes y cualquier cliente MCP (con token)
+servidor_mcp = mcp_servidor.app_http()
 
 app = FastAPI(
+    lifespan=servidor_mcp.lifespan,
     title="ms-ia",
     description="Inteligencia artificial de la Plataforma Licorería: clasificación de productos, agentes y MCP.",
     version="0.2.0",
@@ -36,3 +41,4 @@ app.include_router(video.router)
 app.include_router(modelos.router)
 app.include_router(mcp_api.router)
 app.include_router(agentes_api.router)
+app.mount("/mcp-server", servidor_mcp)

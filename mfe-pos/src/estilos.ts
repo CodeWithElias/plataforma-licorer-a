@@ -122,7 +122,7 @@ export const estilos = `
 
 /* Modales (Cola Offline y Cámara) */
 .pos-modal-fondo { position: fixed; inset: 0; background: rgba(36,26,56,.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 1.25rem; }
-.pos-modal-cuerpo { background: #fff; border: 1px solid var(--borde); border-radius: 18px; max-width: 560px; width: 100%; box-shadow: 0 20px 40px -15px rgba(36,26,56,.25); overflow: hidden; display: flex; flex-direction: column; }
+.pos-modal-fondo > .pos-modal-cuerpo { background: #fff; border: 1px solid var(--borde); border-radius: 18px; max-width: 560px; width: 100%; box-shadow: 0 20px 40px -15px rgba(36,26,56,.25); overflow: hidden; display: flex; flex-direction: column; }
 .pos-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1.2rem 1.4rem; border-bottom: 1px solid var(--borde); background: var(--lila-50); }
 .pos-modal-header h3 { margin: 0; font-size: 1.2rem; }
 .pos-modal-cerrar { background: transparent; border: 0; font-size: 1.5rem; color: var(--gris); cursor: pointer; line-height: 1; }
@@ -159,7 +159,7 @@ export const estilos = `
 .pos-modal-cerrar { width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent;
   color: var(--gris); font-size: 1rem; cursor: pointer; }
 .pos-modal-cerrar:hover { background: var(--lila-100); color: var(--lila-700); }
-.pos-modal-cuerpo { display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem 1.35rem; }
+.pos-modal > .pos-modal-cuerpo { display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem 1.35rem; }
 .pos-visor-camara { position: relative; width: 100%; height: 260px; border-radius: 14px; overflow: hidden;
   background: #191326; display: grid; place-items: center; }
 .pos-visor-camara video.activo { width: 100%; height: 100%; object-fit: cover; }

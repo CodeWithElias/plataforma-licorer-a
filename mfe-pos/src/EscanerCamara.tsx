@@ -1,11 +1,6 @@
 import { type ChangeEvent, useEffect, useRef, useState } from 'react'
 import { type Producto } from './api'
-import {
-  clasificarElementoVisual,
-  obtenerModeloLocal,
-  type PrediccionLocal,
-  sincronizarModeloLatest,
-} from './clasificadorTfjs'
+import { clasificarElementoVisual, prepararModelo, type PrediccionLocal } from './clasificadorTfjs'
 
 interface PropsEscaner {
   productos: Producto[]
@@ -23,7 +18,9 @@ export default function EscanerCamara({ productos, alReconocer, alCerrar }: Prop
   const [camaraActiva, setCamaraActiva] = useState(false)
   const [errorCamara, setErrorCamara] = useState<string | null>(null)
   const [prediccion, setPrediccion] = useState<PrediccionLocal | null>(null)
-  const [versionModelo, setVersionModelo] = useState<string>(() => obtenerModeloLocal().version)
+  const [versionModelo, setVersionModelo] = useState<string | null>(null)
+  const [errorModelo, setErrorModelo] = useState<string | null>(null)
+  const [clasificando, setClasificando] = useState(false)
 
   const detenerCamara = () => {
     if (streamRef.current) {
@@ -34,7 +31,9 @@ export default function EscanerCamara({ productos, alReconocer, alCerrar }: Prop
   }
 
   useEffect(() => {
-    sincronizarModeloLatest().then((m) => setVersionModelo(m.version))
+    prepararModelo()
+      .then(setVersionModelo)
+      .catch((e: Error) => setErrorModelo(e.message))
 
     let cancelado = false
     if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
@@ -76,15 +75,20 @@ export default function EscanerCamara({ productos, alReconocer, alCerrar }: Prop
     }
   }
 
-  const capturarDesdeWebcam = () => {
-    const video = videoRef.current
-    if (!video) return
+  const clasificar = async (fuente: HTMLVideoElement | HTMLImageElement) => {
+    setClasificando(true)
+    setErrorModelo(null)
     try {
-      const res = clasificarElementoVisual(video, productos)
-      procesarResultado(res)
+      procesarResultado(await clasificarElementoVisual(fuente, productos))
     } catch (e) {
-      setErrorCamara((e as Error).message)
+      setErrorModelo((e as Error).message)
+    } finally {
+      setClasificando(false)
     }
+  }
+
+  const capturarDesdeWebcam = () => {
+    if (videoRef.current) void clasificar(videoRef.current)
   }
 
   const alSeleccionarFoto = (ev: ChangeEvent<HTMLInputElement>) => {
@@ -93,12 +97,7 @@ export default function EscanerCamara({ productos, alReconocer, alCerrar }: Prop
     const url = URL.createObjectURL(archivo)
     const img = new Image()
     img.onload = () => {
-      try {
-        const res = clasificarElementoVisual(img, productos)
-        procesarResultado(res)
-      } finally {
-        URL.revokeObjectURL(url)
-      }
+      void clasificar(img).finally(() => URL.revokeObjectURL(url))
     }
     img.src = url
   }
@@ -109,7 +108,7 @@ export default function EscanerCamara({ productos, alReconocer, alCerrar }: Prop
         <header className="pos-modal-encabezado">
           <div>
             <h3>Reconocer producto con IA Local (TF.js)</h3>
-            <p>Inferencia en el navegador sin servidor · Modelo {versionModelo}</p>
+            <p>Inferencia en el navegador sin servidor · {versionModelo ? `Modelo ${versionModelo}` : 'Cargando modelo…'}</p>
           </div>
           <button type="button" className="pos-modal-cerrar" onClick={alCerrar} aria-label="Cerrar escáner">
             ✕
@@ -130,10 +129,10 @@ export default function EscanerCamara({ productos, alReconocer, alCerrar }: Prop
             <button
               type="button"
               className="pos-btn-primario"
-              disabled={!camaraActiva}
+              disabled={!camaraActiva || !versionModelo || clasificando}
               onClick={capturarDesdeWebcam}
             >
-              Capturar de cámara
+              {clasificando ? 'Clasificando…' : 'Capturar de cámara'}
             </button>
 
             <label className="pos-btn-secundario">
@@ -141,6 +140,13 @@ export default function EscanerCamara({ productos, alReconocer, alCerrar }: Prop
               <input type="file" accept="image/*" onChange={alSeleccionarFoto} hidden />
             </label>
           </div>
+
+          {errorModelo && (
+            <div className="pos-alerta error">
+              <strong>No se pudo usar el modelo</strong>
+              <span>{errorModelo}</span>
+            </div>
+          )}
 
           {prediccion && (
             <div className={`pos-alerta ${prediccion.confianza >= 0.8 ? 'ok' : 'error'}`}>

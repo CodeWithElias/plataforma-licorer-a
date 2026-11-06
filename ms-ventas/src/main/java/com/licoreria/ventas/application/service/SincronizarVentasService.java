@@ -6,6 +6,7 @@ import com.licoreria.ventas.application.port.in.SincronizarVentasUseCase;
 import com.licoreria.ventas.domain.exception.DatosInvalidosException;
 import com.licoreria.ventas.domain.exception.DominioException;
 import com.licoreria.ventas.domain.exception.ServicioRemotoException;
+import com.licoreria.ventas.domain.model.EstadoVenta;
 import com.licoreria.ventas.domain.model.MetodoPago;
 import com.licoreria.ventas.domain.model.OrigenVenta;
 import java.util.ArrayList;
@@ -60,8 +61,12 @@ public class SincronizarVentasService implements SincronizarVentasUseCase {
     try {
       Comando comando = new Comando(operationId, cajeroId, v.items(), metodo(v.metodo()), OrigenVenta.OFFLINE, v.fechaLocal());
       RegistrarVentaUseCase.Resultado r = registrar.registrar(comando, token);
-      return r.nueva()
-          ? new ResultadoItem(id, Resultado.OK, null, null, r.venta())
+      if (r.nueva()) {
+        return new ResultadoItem(id, Resultado.OK, null, null, r.venta());
+      }
+      // El POS borra de su cola los DUPLICADO: una venta que se canceló no debe perderse en silencio
+      return r.venta().getEstado() == EstadoVenta.CANCELADA
+          ? new ResultadoItem(id, Resultado.ERROR, "VENTA_CANCELADA", "Esta venta ya se intentó y quedó cancelada", r.venta())
           : new ResultadoItem(id, Resultado.DUPLICADO, null, "Ya se había registrado", r.venta());
     } catch (DominioException e) {
       return error(id, e.codigo(), e.getMessage());   // SIN_STOCK, PRODUCTO_NO_ENCONTRADO, SAGA_COMPENSADA…
