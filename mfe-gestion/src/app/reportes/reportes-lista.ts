@@ -1163,22 +1163,13 @@ export class ReportesLista implements OnInit {
 
   // Resultado actual y métricas derivadas
   protected readonly ultimoReporteId = signal<string>('rep-actual');
-  protected readonly resumenEjecutivo = signal(
-    'Total vendido en el periodo: Bs 473.00 (11 unidades en 6 categorías/productos). Mayor recaudación: Ron Havana Club 3 Años 750 ml con Bs 220.00 (2 unidades). Cervezas y rones representaron el 85% de los ingresos.',
-  );
-  protected readonly totalVentasBs = signal(473.0);
-  protected readonly totalUnidades = signal(11);
-  protected readonly categoriaLider = signal('Rones & Licores');
+  protected readonly resumenEjecutivo = signal('');
+  protected readonly totalVentasBs = signal(0);
+  protected readonly totalUnidades = signal(0);
+  protected readonly categoriaLider = signal('—');
 
   // Filas de datos para Gráfico y Mini Tabla
-  protected readonly filasDatos = signal<FilaReporte[]>([
-    { nombre: 'Ron Havana Club 3 Años', unidades: 2, monto: 220.0, porcentaje: 46.5 },
-    { nombre: 'Ron Abuelo Añejo 750 ml', unidades: 1, monto: 130.0, porcentaje: 27.5 },
-    { nombre: 'Vino Kohlberg Tinto', unidades: 1, monto: 45.0, porcentaje: 9.5 },
-    { nombre: 'Cerveza Huari 620 ml', unidades: 3, monto: 42.0, porcentaje: 8.9 },
-    { nombre: 'Cerveza Paceña Lata 355 ml', unidades: 3, monto: 24.0, porcentaje: 5.1 },
-    { nombre: 'Cerveza Paceña 620 ml', unidades: 1, monto: 12.0, porcentaje: 2.5 },
-  ]);
+  protected readonly filasDatos = signal<FilaReporte[]>([]);
 
   ngOnInit() {
     void this.cargar();
