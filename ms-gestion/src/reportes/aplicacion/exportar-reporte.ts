@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
+import * as XLSX from 'xlsx';
 import { REPORTE_REPOSITORY, ReporteNoEncontrado, type ReporteRepository } from '../dominio/reporte.repository.js';
 import { MotorPdf } from '../infraestructura/motor-pdf.js';
-import type { FormatoReporte } from '../dominio/reporte.js';
+import { Reporte, type FormatoReporte } from '../dominio/reporte.js';
 
 export interface ArchivoReporteDto {
   formato: 'PDF' | 'XLSX';
@@ -25,13 +26,11 @@ export class ExportarReporte {
       throw new ReporteNoEncontrado(id);
     }
 
-    if (formato === 'PDF') {
-      const buffer = await this.motorPdf.generarBuffer(reporte);
-      ExportarReporte.cache.set(`${id}:pdf`, {
-        buffer,
-        mime: 'application/pdf',
-      });
-    }
+    const buffer = formato === 'PDF' ? await this.motorPdf.generarBuffer(reporte) : this.generarXlsx(reporte);
+    ExportarReporte.cache.set(`${id}:${formato.toLowerCase()}`, {
+      buffer,
+      mime: formato === 'PDF' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
 
     const baseUrl = process.env.GESTION_BASE_URL || process.env.BASE_URL || '';
     const cleanBase = baseUrl.replace(/\/$/, '');
@@ -54,7 +53,7 @@ export class ExportarReporte {
       return {
         buffer: enCache.buffer,
         mime: enCache.mime,
-        filename: `reporte-${id}.pdf`,
+        filename: `reporte-${id}.${formato.toLowerCase() === 'xlsx' ? 'xlsx' : 'pdf'}`,
       };
     }
 
@@ -63,13 +62,24 @@ export class ExportarReporte {
       throw new ReporteNoEncontrado(id);
     }
 
-    const buffer = await this.motorPdf.generarBuffer(reporte);
-    ExportarReporte.cache.set(key, { buffer, mime: 'application/pdf' });
+    const esXlsx = formato.toLowerCase() === 'xlsx';
+    const buffer = esXlsx ? this.generarXlsx(reporte) : await this.motorPdf.generarBuffer(reporte);
+    const mime = esXlsx ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf';
+    ExportarReporte.cache.set(key, { buffer, mime });
     return {
       buffer,
-      mime: 'application/pdf',
-      filename: `reporte-${id}.pdf`,
+      mime,
+      filename: `reporte-${id}.${esXlsx ? 'xlsx' : 'pdf'}`,
     };
   }
-}
 
+  private generarXlsx(reporte: Reporte): Buffer {
+    const columnas = reporte.columnas.length > 0 ? reporte.columnas : Object.keys(reporte.datos[0] ?? {});
+    const filas = reporte.datos.map((fila) => columnas.map((columna) => fila[columna] ?? ''));
+    const hoja = XLSX.utils.aoa_to_sheet([columnas, ...filas]);
+    hoja['!cols'] = columnas.map((columna) => ({ wch: Math.max(columna.length + 2, 16) }));
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, 'Reporte');
+    return XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  }
+}

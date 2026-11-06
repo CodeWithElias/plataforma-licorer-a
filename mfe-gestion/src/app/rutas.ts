@@ -27,6 +27,7 @@ export const rutas: Routes = [
       { path: 'proveedores/nuevo', component: ProveedorForm },
       { path: 'proveedores/:id', component: ProveedorForm },
       { path: 'reportes', loadComponent: () => import('./reportes/reportes-lista').then((m) => m.ReportesLista) },
+      { path: 'historial', loadComponent: () => import('./reportes/historial-reportes').then((m) => m.HistorialReportes) },
     ],
   },
 ];

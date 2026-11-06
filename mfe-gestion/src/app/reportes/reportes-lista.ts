@@ -366,81 +366,6 @@ interface FilaReporte {
       </div>
     </section>
 
-    <!-- ========================================== -->
-    <!-- BLOQUE 3: HISTORIAL                        -->
-    <!-- ========================================== -->
-    <section class="tarjeta-contenedor historial-seccion">
-      <div class="historial-header">
-        <h2 class="historial-titulo">Historial</h2>
-        <button type="button" class="btn-recargar" (click)="cargar()" [disabled]="cargando()">
-          🔄 Actualizar lista
-        </button>
-      </div>
-
-      @if (error()) {
-        <div class="alerta-error">
-          <strong>Error al cargar historial:</strong> {{ error() }}
-        </div>
-      } @else {
-        <div class="tabla-scroll">
-          <table class="tabla-historial">
-            <thead>
-              <tr>
-                <th>REPORTE</th>
-                <th>PARÁMETROS</th>
-                <th>ESTADO</th>
-                <th>GENERADO POR</th>
-                <th>FECHA</th>
-                <th style="text-align: right">ACCIONES</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (r of reportes(); track r.id) {
-                <tr>
-                  <td>
-                    <div class="celda-reporte">
-                      <span class="icono-doc" aria-hidden="true">📄</span>
-                      <div>
-                        <strong class="nombre-rep">{{ r.consulta }}</strong>
-                        <span class="id-rep">{{ r.id }}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="celda-params">
-                    {{ formatearParametros(r.consulta) }}
-                  </td>
-                  <td>
-                    @if (r.creadoPor.includes('n8n')) {
-                      <span class="badge-estado automatico">Automático</span>
-                    } @else {
-                      <span class="badge-estado listo">Listo</span>
-                    }
-                  </td>
-                  <td>
-                    <span class="texto-usuario">{{ r.creadoPor }}</span>
-                  </td>
-                  <td class="celda-fecha">
-                    {{ formatearFecha(r.fecha) }}
-                  </td>
-                  <td class="celda-acciones">
-                    <button type="button" class="btn-accion-sm" (click)="verDetalleReporte(r)">Ver</button>
-                    <button type="button" class="btn-accion-sm" (click)="repetirConsulta(r.consulta)">Repetir</button>
-                    <button type="button" class="btn-accion-sm" (click)="descargarPdf(r.id)">PDF</button>
-                    <button type="button" class="btn-accion-sm" (click)="descargarXlsx()">XLSX</button>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="6" class="celda-vacia">
-                    No hay reportes previos generados. Escribe tu primera consulta en el asistente de arriba.
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-    </section>
   `,
   styles: `
     :host {
@@ -1362,44 +1287,57 @@ export class ReportesLista implements OnInit {
 
   procesarReporteActivo(r: ReporteItem) {
     this.ultimoReporteId.set(r.id);
+    this.totalVentasBs.set(0);
+    this.totalUnidades.set(0);
+    this.categoriaLider.set('—');
+    this.filasDatos.set([]);
+
     if (r.resumen) {
       this.resumenEjecutivo.set(r.resumen);
     }
 
     if (r.datos) {
       try {
-        const parsed = JSON.parse(r.datos);
+        const parsed = typeof r.datos === 'string' ? JSON.parse(r.datos) : r.datos;
         if (Array.isArray(parsed) && parsed.length > 0) {
           let sumaMonto = 0;
           let sumaUnidades = 0;
           const items: { nombre: string; unidades: number; monto: number }[] = [];
 
           for (const item of parsed) {
-            const nombre = item['Producto'] || item['Categoría'] || item['Fecha'] || item['Cajero'] || 'Varios';
-            const unidades = Number(item['Unidades'] ?? 1);
-            const monto = Number(item['Monto (Bs)'] ?? item['total'] ?? item['monto'] ?? 0);
+            const nombre =
+              item['Producto'] || item['producto'] || item['Categoría'] || item['categoria'] || item['Fecha'] || item['fecha'] || 'Varios';
+            const unidades = Number(item['Unidades'] ?? item['unidades'] ?? item['cantidad'] ?? 0);
+            const monto = Number(
+              item['Monto (Bs)'] ??
+                item['monto (bs)'] ??
+                item['totalBs'] ??
+                item['subtotalBs'] ??
+                item['subtotal'] ??
+                item['total'] ??
+                item['monto'] ??
+                0,
+            );
             sumaMonto += monto;
             sumaUnidades += unidades;
             items.push({ nombre, unidades, monto });
           }
 
-          if (sumaMonto > 0) {
-            this.totalVentasBs.set(sumaMonto);
-            this.totalUnidades.set(sumaUnidades);
-            const filas = items.map((it) => ({
-              nombre: it.nombre,
-              unidades: it.unidades,
-              monto: it.monto,
-              porcentaje: Math.min(100, Math.round((it.monto / sumaMonto) * 100)),
-            }));
-            this.filasDatos.set(filas);
-            if (filas.length > 0) {
-              this.categoriaLider.set(filas[0].nombre);
-            }
+          this.totalVentasBs.set(sumaMonto);
+          this.totalUnidades.set(sumaUnidades);
+          const filas = items.map((it) => ({
+            nombre: it.nombre,
+            unidades: it.unidades,
+            monto: it.monto,
+            porcentaje: sumaMonto > 0 ? Math.min(100, Math.round((it.monto / sumaMonto) * 100)) : 0,
+          }));
+          this.filasDatos.set(filas);
+          if (filas.length > 0) {
+            this.categoriaLider.set(filas[0].nombre);
           }
         }
       } catch {
-        // En caso de que no sea un json valido se mantienen datos previos
+        // Ignorar error de parsing
       }
     }
   }
@@ -1431,12 +1369,34 @@ export class ReportesLista implements OnInit {
     }
   }
 
-  descargarXlsx() {
-    alert('Exportación XLSX encolada: se generará una planilla Excel con el desglose tabular y fórmulas de cálculo.');
+  async descargarXlsx(id?: string) {
+    const targetId = id || this.ultimoReporteId();
+    if (!targetId) return;
+
+    this.descargandoId.set(targetId);
+    try {
+      const res = await firstValueFrom(
+        this.apollo.mutate({
+          mutation: EXPORTAR_REPORTE,
+          variables: { id: targetId, formato: 'XLSX' },
+        }),
+      );
+      let url = res.data?.exportarReporte?.url;
+      if (url) {
+        if (url.includes('ms-gestion:3000')) {
+          url = url.replace(/http:\/\/ms-gestion:3000/, '');
+        }
+        window.open(url, '_blank');
+      }
+    } catch (e) {
+      alert(`No se pudo descargar el XLSX: ${mensajeDeError(e)}`);
+    } finally {
+      this.descargandoId.set(null);
+    }
   }
 
   programarReporte() {
-    alert('Reporte programado con éxito: n8n ejecutará esta misma consulta todos los lunes a las 08:00 y lo enviará al correo del Gerente.');
+    alert('La programación automática se configura actualmente desde n8n. Esta opción todavía no crea una programación desde la interfaz.');
   }
 
   verDetalleReporte(r: ReporteItem) {

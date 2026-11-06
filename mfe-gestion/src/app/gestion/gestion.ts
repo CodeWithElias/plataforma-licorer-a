@@ -10,6 +10,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
       <nav class="pestanas">
         <a routerLink="proveedores" routerLinkActive="activo">Proveedores</a>
         <a routerLink="reportes" routerLinkActive="activo">Reportes</a>
+        <a routerLink="historial" routerLinkActive="activo">Historial</a>
       </nav>
       <router-outlet />
     </section>

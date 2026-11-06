@@ -252,16 +252,27 @@ def _nodo_generar_resumen_ejecutivo(estado: EstadoReporte) -> dict[str, Any]:
 
     prompt = (
         f"Consulta del gerente: '{consulta}'. "
-        f"Columnas: {estado.get('columnas')}. Primeras filas: {datos[:5]}. "
-        f"Datos clave: {resumen_base}. "
-        "Redacta un resumen ejecutivo breve (máximo 2 oraciones en español) claro y profesional."
+        f"Datos calculados: total Bs {estado.get('totalGeneral', 0.0):.2f}, "
+        f"{estado.get('unidadesTotales', 0)} unidades, líder '{datos[0][0] if fuente != 'stock' else ''}'. "
+        f"Resumen base: {resumen_base}. "
+        "Redacta un resumen ejecutivo breve, claro y profesional, sin cambiar ninguna cifra, "
+        "nombre, unidad ni dato del resumen base."
     )
     resumen_llm = consultar_ollama(
         prompt,
         sistema="Eres el analista de inteligencia de negocios de una licorería. Responde en español en máximo 2 oraciones.",
     )
+
+    total_texto = f"{estado.get('totalGeneral', 0.0):.2f}"
+    unidades_texto = str(estado.get("unidadesTotales", 0))
+    llm_valido = (
+        bool(resumen_llm)
+        and total_texto in resumen_llm
+        and unidades_texto in resumen_llm
+        and (fuente == "stock" or str(datos[0][0]) in resumen_llm)
+    )
     return {
-        "resumen": resumen_llm or resumen_base,
+        "resumen": resumen_llm if llm_valido else resumen_base,
         "reporteId": None,
     }
 
@@ -302,4 +313,3 @@ def ejecutar_agente_reportes(
         "resumen": final.get("resumen", ""),
         "reporteId": final.get("reporteId"),
     }
-
