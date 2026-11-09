@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import 'config.dart';
 import 'pantallas/inicio_page.dart';
 import 'pantallas/login_page.dart';
 import 'servicios/api.dart';
 import 'servicios/sesion.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Config.cargar();
   runApp(LicoreriaApp(sesion: Sesion()));
 }
 

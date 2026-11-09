@@ -67,6 +67,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - .env
     - assets/modelos/modelo.tflite
     - assets/modelos/etiquetas.txt
     - assets/modelos/latest.json

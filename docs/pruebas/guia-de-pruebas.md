@@ -100,7 +100,7 @@ Corre cada comando desde la carpeta del proyecto y guarda la salida: `<comando> 
 | A-06 | web-shell | `npx ng test --watch=false` | 3 pruebas, 0 fallas | |
 | A-07 | mfe-gestion | `npx ng test --watch=false` | 2 pruebas, 0 fallas | |
 | A-08 | mfe-pos | `npm test` | 6 pruebas, 0 fallas | |
-| A-09 | app-movil | `flutter analyze` y `flutter test` | Sin problemas; 7 pruebas | |
+| A-09 | app-movil | `flutter analyze` y `flutter test` | Sin problemas; 8 pruebas | |
 
 **Cobertura** (anótala en el informe):
 
@@ -214,8 +214,8 @@ docker compose cp ms-ia:/tmp/pacena.jpg ./pacena.jpg
 **App móvil** (R05, R07). Con el celular por USB o un emulador, `adb reverse` hace que `localhost` del teléfono llegue a tu PC, así que el login de Keycloak funciona sin cambiar `KC_HOSTNAME`:
 
 ```sh
-adb reverse tcp:80 tcp:80
-cd app-movil && flutter run --dart-define=API_URL=http://localhost
+"%LOCALAPPDATA%\\Android\\sdk\\platform-tools\\adb" reverse tcp:80 tcp:80   # cmd; repetir cada vez que conectes el celular
+cd app-movil && flutter run      # con API_URL=http://localhost en app-movil/.env
 ```
 
 | ID | Flujo | Pasos | Esperado | Resultado |

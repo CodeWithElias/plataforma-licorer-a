@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'package:app_movil/config.dart';
 import 'package:app_movil/db/base_local.dart';
 import 'package:app_movil/main.dart';
 import 'package:app_movil/pantallas/catalogo_offline_page.dart';
@@ -38,6 +39,12 @@ void main() {
 
     expect(find.text('Licorería'), findsOneWidget);
     expect(find.text('Iniciar sesión'), findsOneWidget);
+  });
+
+  test('Config lee el .env ignorando comentarios y líneas vacías', () {
+    final v = Config.leerEnv('# comentario\r\n\nAPI_URL=http://192.168.1.35\nKEYCLOAK_REALM = licoreria\nSIN_IGUAL\n=x\nVACIA=\n');
+
+    expect(v, {'API_URL': 'http://192.168.1.35', 'KEYCLOAK_REALM': 'licoreria', 'VACIA': ''});
   });
 
   test('lee usuario y roles del token', () {

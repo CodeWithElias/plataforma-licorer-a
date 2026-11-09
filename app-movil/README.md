@@ -17,11 +17,11 @@ App móvil de la Plataforma Licorería: escanea productos con la cámara y un mo
 
 ```sh
 flutter pub get
-cp .env.example .env                           # pon en API_URL la IP de tu PC (emulador Android: http://10.0.2.2)
-flutter run --dart-define-from-file=.env
+cp .env.example .env                           # API_URL: ver las opciones dentro del archivo
+flutter run
 ```
 
-También se puede pasar una sola variable: `flutter run --dart-define=API_URL=http://192.168.1.10`.
+La app lee `.env` sola al arrancar. Para cambiar un valor en una corrida: `flutter run --dart-define=API_URL=http://10.0.2.2`.
 
 > **Pendiente para probar el login en un dispositivo:** Keycloak publica su URL como `http://localhost/auth` (`KC_HOSTNAME`), así que la pantalla de login abierta desde el celular intenta volver a `localhost` y falla. Para la demo hay que poner en `KC_HOSTNAME` la dirección de la PC (p. ej. `http://192.168.1.10/auth`) y la misma en `KEYCLOAK_ISSUER` de cada servicio, y abrir la web también con esa dirección. Se decide en la integración de CU04 (semana 3).
 

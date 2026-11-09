@@ -16,7 +16,7 @@ class Sesion {
   DateTime? _vence;
   Map<String, dynamic> _claims = const {};
 
-  static const _servicio = AuthorizationServiceConfiguration(
+  static final _servicio = AuthorizationServiceConfiguration(
     authorizationEndpoint: '${Config.apiUrl}/auth/realms/${Config.realm}/protocol/openid-connect/auth',
     tokenEndpoint: '${Config.apiUrl}/auth/realms/${Config.realm}/protocol/openid-connect/token',
     endSessionEndpoint: '${Config.apiUrl}/auth/realms/${Config.realm}/protocol/openid-connect/logout',
