@@ -14,6 +14,10 @@ agente (el gerente desde el MFE Gestión, o la cuenta de servicio de n8n, ambos 
 Errores: si el servicio responde `{codigo, mensaje}` (p. ej. `SIN_PERMISO`), la tool lo devuelve como error con ese
 código para que el agente lo explique en su respuesta.
 
+## Cómo se usan
+
+Servidor MCP real (FastMCP, Streamable HTTP) en `http://ms-ia:8002/mcp-server/mcp` (por el gateway: `/api/ia/mcp-server/mcp`), con `Authorization: Bearer <token>`. Cada tool reenvía ese token a su servicio. `GET /mcp/tools` y `POST /mcp/tools/{nombre}` siguen disponibles por REST para consultarlas desde Swagger.
+
 ## Flujos que las usan
 
 - **CU06 – Reabastecer** (`POST /agentes/reabastecimiento`, lo llama n8n con `{productoCodigo, cantidad, minimo}`):

@@ -16,7 +16,7 @@ class ReporteRepositoryEnMemoria implements ReporteRepository {
   }
 
   async guardar(reporte: Reporte): Promise<Reporte> {
-    this.reportes.set(reporte.id, reporte);
+    this.reportes.set(reporte.id!, reporte);
     return reporte;
   }
 

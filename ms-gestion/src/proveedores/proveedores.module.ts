@@ -11,6 +11,7 @@ import { ProveedoresResolver } from './interfaces/proveedores.resolver.js';
  * Capas (DDD): dominio/ → aplicacion/ → infraestructura/ · interfaces/
  */
 @Module({
+  exports: [PROVEEDOR_REPOSITORY],
   providers: [
     ProveedoresResolver,
     ListarProveedores,

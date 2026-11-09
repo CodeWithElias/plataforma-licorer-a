@@ -32,10 +32,10 @@ pip install -r entrenamiento/requirements.txt          # TensorFlow (solo para e
 python entrenamiento/entrenar.py --dataset dataset --salida modelos
 ```
 
-Sin Python local, con Docker (desde `ms-ia/`, en Git Bash):
+Requiere Python 3.11 (`tensorflowjs` exige TensorFlow 2.15). Sin Python local, con Docker (desde `ms-ia/`, en Git Bash):
 
 ```sh
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/ms-ia" -w /ms-ia python:3.12-slim sh -c \
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/ms-ia" -w /ms-ia python:3.11-slim sh -c \
   "pip install -q -r entrenamiento/requirements.txt && python entrenamiento/entrenar.py --dataset dataset --salida modelos"
 ```
 

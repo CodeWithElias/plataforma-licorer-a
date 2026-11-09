@@ -43,7 +43,7 @@ def validar_token(token: str) -> Usuario:
             token, clave.key, algorithms=["RS256"], issuer=_emisor(), leeway=30,
             options={"verify_aud": False, "require": ["exp", "iss", "sub"]},
         )
-    except (jwt.PyJWTError, jwt.PyJWKClientError) as e:
+    except (jwt.PyJWTError, jwt.PyJWKClientError, ValueError) as e:   # ValueError: token mal formado
         raise ErrorApi(401, "NO_AUTENTICADO", f"Token inválido: {e}") from e
     return Usuario(
         id=claims["sub"],

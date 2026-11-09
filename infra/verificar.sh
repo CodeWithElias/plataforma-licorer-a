@@ -133,6 +133,12 @@ fi
 curl -s http://localhost/api/ia/health | grep -q '"motor":"langgraph"' \
   && pasa "agentes de ms-ia corren con LangGraph" || falla "ms-ia no tiene LangGraph instalado (docker compose up -d --build ms-ia)"
 
+code=$(http -X POST http://localhost/api/ia/mcp-server/mcp -H 'Content-Type: application/json' -H 'Accept: application/json,text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
+[ "$code" = 401 ] && pasa "servidor MCP sin token responde 401" || falla "servidor MCP sin token respondió $code"
+curl -s -X POST http://localhost/api/ia/mcp-server/mcp -H "Authorization: Bearer $SRV" -H 'Content-Type: application/json' -H 'Accept: application/json,text/event-stream' -H 'MCP-Protocol-Version: 2025-06-18' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | grep -q 'crear_orden_compra' \
+  && pasa "servidor MCP lista las tools por el protocolo" || falla "servidor MCP no listó las tools"
+
 echo "5. Frontends"
 curl -s http://localhost/ | grep -q '<app-root' && pasa "Shell en http://localhost/" || falla "el Shell no responde en /"
 code=$(http http://localhost/gestion)

@@ -1,12 +1,15 @@
+import type { LayersModel, Tensor } from '@tensorflow/tfjs'
 import type { Producto } from './api'
+import { obtenerToken } from './auth'
 
 /**
- * Clasificador local en el navegador con TensorFlow.js / tensores en WebCanvas (CU04 / R06).
- * Descarga y cachea la versión vigente desde GET /api/ia/modelos/latest y funciona 100 % sin conexión (modo avión).
+ * Clasificador en el navegador con TensorFlow.js (CU04 / R06). Descarga el modelo vigente de ms-ia
+ * (GET /api/ia/modelos/latest), lo guarda en IndexedDB y clasifica sin servidor, también sin conexión.
+ * TensorFlow.js se carga recién al abrir el escáner para no agrandar la carga inicial del POS.
  */
 
 const API_IA = (import.meta as { env?: Record<string, string> }).env?.VITE_API_IA ?? '/api/ia'
-const CLAVE_CACHE_MODELO = 'licoreria-pos-modelo-tfjs-v1'
+const CLAVE_INFO = 'licoreria-pos-modelo-tfjs'
 const TAMANO_ENTRADA = 224
 
 export interface PrediccionLocal {
@@ -17,14 +20,17 @@ export interface PrediccionLocal {
   modelo: string
 }
 
-export interface ModeloTfjsLocal {
+export interface InfoModelo {
   version: string
   etiquetas: string[]
-  kernel: number[][]
-  bias: number[]
 }
 
-/** Mapeo oficial de las 5 clases del dataset (ms-ia/dataset/README.md) al catálogo de ms-inventario. */
+interface ModeloCargado {
+  modelo: LayersModel
+  info: InfoModelo
+}
+
+/** Las 5 clases del dataset (ms-ia/dataset/README.md) en el catálogo de ms-inventario. */
 export const MAPA_ETIQUETA_A_CODIGO: Record<string, { codigo: string; nombre: string }> = {
   pacena_620: { codigo: 'CER-001', nombre: 'Cerveza Paceña 620 ml' },
   huari_620: { codigo: 'CER-003', nombre: 'Cerveza Huari 620 ml' },
@@ -33,204 +39,116 @@ export const MAPA_ETIQUETA_A_CODIGO: Record<string, { codigo: string; nombre: st
   absolut_750: { codigo: 'VOD-001', nombre: 'Vodka Absolut 750 ml' },
 }
 
-/** Pesos entrenados en ms-ia/modelos (100 % precisión de validación) pre-empacados para modo avión inmediato. */
-export const MODELO_OFFLINE_POR_DEFECTO: ModeloTfjsLocal = {
-  version: '20261101-163914',
-  etiquetas: ['absolut_750', 'casareal_negra', 'huari_620', 'jw_red', 'pacena_620'],
-  kernel: [
-    [41.3169, 29.1428, 32.3281, 46.3658, 46.3134],
-    [44.3404, 30.6257, 37.5877, 38.1941, 39.631],
-    [49.3206, 28.0957, 45.2523, 40.0892, 30.6],
-    [32.526, 5.1466, 6.937, 41.5946, 48.1961],
-    [44.5771, 5.1384, 21.2105, 13.1168, 39.0095],
-    [51.3942, 5.6933, 41.1738, 19.7274, 7.859],
-    [6.3545, 20.2592, 19.065, 2.9946, 3.7884],
-    [2.5552, 21.3622, 12.4428, 16.6847, 2.0576],
-    [3.8375, 19.0554, 4.0997, 12.8416, 20.6],
-  ],
-  bias: [-100.092, -32.3104, -59.2291, -65.2052, -74.3867],
-}
+let cargado: Promise<ModeloCargado> | null = null
 
-let modeloEnMemoria: ModeloTfjsLocal | null = null
-
-export function obtenerModeloLocal(): ModeloTfjsLocal {
-  if (modeloEnMemoria) return modeloEnMemoria
+function infoGuardada(): InfoModelo | null {
   try {
-    const guardado = typeof localStorage !== 'undefined' ? localStorage.getItem(CLAVE_CACHE_MODELO) : null
-    if (guardado) {
-      const parsed = JSON.parse(guardado) as ModeloTfjsLocal
-      if (parsed && Array.isArray(parsed.etiquetas) && Array.isArray(parsed.kernel) && Array.isArray(parsed.bias)) {
-        modeloEnMemoria = parsed
-        return parsed
-      }
-    }
+    const texto = localStorage.getItem(CLAVE_INFO)
+    return texto ? (JSON.parse(texto) as InfoModelo) : null
   } catch {
-    // Si localStorage no está disponible (ej. tests Node), usa el modelo por defecto
+    return null
   }
-  modeloEnMemoria = MODELO_OFFLINE_POR_DEFECTO
-  return modeloEnMemoria
 }
 
-/** Sincroniza metadatos desde GET /api/ia/modelos/latest cuando hay red y los guarda para uso offline. */
-export async function sincronizarModeloLatest(): Promise<ModeloTfjsLocal> {
-  const base = obtenerModeloLocal()
+/** La versión vigente en ms-ia, o null si no hay conexión. */
+async function infoDelServidor(): Promise<InfoModelo | null> {
   try {
-    let token = ''
-    if (typeof window !== 'undefined' && window.licoreriaAuth) {
-      token = await window.licoreriaAuth.token()
-    }
-    const r = await fetch(`${API_IA}/modelos/latest`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-    if (!r.ok) return base
+    const r = await fetch(`${API_IA}/modelos/latest`, { headers: { Authorization: `Bearer ${await obtenerToken()}` } })
+    if (!r.ok) return null
     const info = await r.json()
-    if (info && typeof info.version === 'string' && Array.isArray(info.etiquetas) && info.etiquetas.length === base.bias.length) {
-      const actualizado: ModeloTfjsLocal = {
-        ...base,
-        version: info.version,
-        etiquetas: info.etiquetas,
-      }
-      modeloEnMemoria = actualizado
-      try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(CLAVE_CACHE_MODELO, JSON.stringify(actualizado))
-        }
-      } catch {
-        // Ignorar errores de cuota de almacenamiento
-      }
-      return actualizado
-    }
+    return info.tfjs ? { version: info.version, etiquetas: info.etiquetas } : null
   } catch {
-    // En modo avión o sin conexión devuelve el modelo local cacheado
+    return null
   }
-  return base
 }
 
-/**
- * Extrae el vector de 9 características espaciales RGB (normalizadas a 0..1) de un buffer RGBA (ancho × alto × 4):
- * [mediaGlobalR, mediaGlobalG, mediaGlobalB, mediaCentroR, mediaCentroG, mediaCentroB, stdR, stdG, stdB]
- */
-export function extraerCaracteristicasRgba(
-  rgba: ArrayLike<number>,
-  ancho: number,
-  alto: number,
-): number[] {
-  const totalPixeles = Math.max(1, ancho * alto)
-  let sumR = 0
-  let sumG = 0
-  let sumB = 0
+async function cargar(): Promise<ModeloCargado> {
+  const tf = await import('@tensorflow/tfjs')
+  const guardada = infoGuardada()
+  const vigente = await infoDelServidor()
+  const rutaLocal = (version: string) => `indexeddb://licoreria-modelo-${version}`
 
-  const h0 = Math.floor(alto / 3)
-  const h1 = Math.floor((2 * alto) / 3)
-  const w0 = Math.floor(ancho / 3)
-  const w1 = Math.floor((2 * ancho) / 3)
-  let sumCentroR = 0
-  let sumCentroG = 0
-  let sumCentroB = 0
-  let cuentaCentro = 0
-
-  for (let y = 0; y < alto; y++) {
-    const enCentroY = y >= h0 && y < h1
-    for (let x = 0; x < ancho; x++) {
-      const idx = (y * ancho + x) * 4
-      const r = (rgba[idx] ?? 0) / 255
-      const g = (rgba[idx + 1] ?? 0) / 255
-      const b = (rgba[idx + 2] ?? 0) / 255
-      sumR += r
-      sumG += g
-      sumB += b
-      if (enCentroY && x >= w0 && x < w1) {
-        sumCentroR += r
-        sumCentroG += g
-        sumCentroB += b
-        cuentaCentro++
-      }
+  if (guardada && (!vigente || vigente.version === guardada.version)) {
+    try {
+      return { modelo: await tf.loadLayersModel(rutaLocal(guardada.version)), info: guardada }
+    } catch {
+      // No está o se borró: se descarga si hay conexión
     }
   }
-
-  const mediaR = sumR / totalPixeles
-  const mediaG = sumG / totalPixeles
-  const mediaB = sumB / totalPixeles
-
-  const divCentro = Math.max(1, cuentaCentro)
-  const centroR = sumCentroR / divCentro
-  const centroG = sumCentroG / divCentro
-  const centroB = sumCentroB / divCentro
-
-  let varR = 0
-  let varG = 0
-  let varB = 0
-  for (let i = 0; i < totalPixeles; i++) {
-    const idx = i * 4
-    const dr = (rgba[idx] ?? 0) / 255 - mediaR
-    const dg = (rgba[idx + 1] ?? 0) / 255 - mediaG
-    const db = (rgba[idx + 2] ?? 0) / 255 - mediaB
-    varR += dr * dr
-    varG += dg * dg
-    varB += db * db
+  if (!vigente) {
+    throw new Error('El modelo no está disponible: abre el escáner una vez con conexión para descargarlo.')
   }
 
-  const stdR = Math.sqrt(varR / totalPixeles)
-  const stdG = Math.sqrt(varG / totalPixeles)
-  const stdB = Math.sqrt(varB / totalPixeles)
-
-  return [mediaR, mediaG, mediaB, centroR, centroG, centroB, stdR, stdG, stdB]
+  const url = `${API_IA}/modelos/${vigente.version}/tfjs/model.json`
+  const modelo = await tf.loadLayersModel(url, {
+    requestInit: { headers: { Authorization: `Bearer ${await obtenerToken()}` } },
+  })
+  await modelo.save(rutaLocal(vigente.version))
+  try {
+    localStorage.setItem(CLAVE_INFO, JSON.stringify(vigente))
+  } catch {
+    // Sin localStorage seguirá funcionando, pero volverá a descargarlo
+  }
+  return { modelo, info: vigente }
 }
 
-/** Ejecuta la capa Dense + Softmax en el navegador y vincula la predicción con el catálogo del POS. */
-export function clasificarVector(
-  caracteristicas: number[],
-  catalogo: Producto[] = [],
-  modelo: ModeloTfjsLocal = obtenerModeloLocal(),
-): PrediccionLocal {
-  const numClases = modelo.bias.length
-  const logits = new Array<number>(numClases).fill(0)
+/** Deja el modelo listo. Si falla se puede reintentar. @returns su versión */
+export async function prepararModelo(): Promise<string> {
+  cargado ??= cargar().catch((e) => {
+    cargado = null
+    throw e
+  })
+  return (await cargado).info.version
+}
 
-  for (let c = 0; c < numClases; c++) {
-    let acc = modelo.bias[c] ?? 0
-    for (let f = 0; f < caracteristicas.length && f < modelo.kernel.length; f++) {
-      acc += caracteristicas[f] * (modelo.kernel[f][c] ?? 0)
-    }
-    logits[c] = acc
-  }
-
-  const maxLogit = Math.max(...logits)
-  const exps = logits.map((l) => Math.exp(l - maxLogit))
-  const sumaExp = exps.reduce((a, b) => a + b, 0) || 1
-  const probs = exps.map((e) => e / sumaExp)
-
-  let mejorIdx = 0
+/** Convierte las probabilidades del modelo en una predicción cruzada con el catálogo del POS. */
+export function interpretarProbabilidades(probs: ArrayLike<number>, info: InfoModelo, catalogo: Producto[] = []): PrediccionLocal {
+  let mejor = 0
   for (let i = 1; i < probs.length; i++) {
-    if (probs[i] > probs[mejorIdx]) mejorIdx = i
+    if (probs[i] > probs[mejor]) mejor = i
   }
-
-  const etiqueta = modelo.etiquetas[mejorIdx] ?? `clase_${mejorIdx}`
-  const confianza = Math.round((probs[mejorIdx] ?? 0) * 10000) / 10000
+  const etiqueta = info.etiquetas[mejor] ?? `clase_${mejor}`
   const ref = MAPA_ETIQUETA_A_CODIGO[etiqueta]
-  const prodCatalogo = ref ? catalogo.find((p) => p.codigo === ref.codigo) : undefined
-
+  const producto = ref ? catalogo.find((p) => p.codigo === ref.codigo) : undefined
   return {
     etiqueta,
-    confianza,
-    productoCodigo: prodCatalogo?.codigo ?? ref?.codigo ?? null,
-    nombre: prodCatalogo?.nombre ?? ref?.nombre ?? null,
-    modelo: modelo.version,
+    confianza: Math.round(probs[mejor] * 10000) / 10000,
+    productoCodigo: producto?.codigo ?? ref?.codigo ?? null,
+    nombre: producto?.nombre ?? ref?.nombre ?? null,
+    modelo: info.version,
   }
 }
 
-/** Clasifica un frame de <video> o una imagen <img> directamente en el navegador sin enviar datos al servidor. */
-export function clasificarElementoVisual(
+/** Ejecuta el modelo sobre un tensor [1, alto, ancho, 3] con píxeles de 0 a 255 (el modelo hace su propio escalado). */
+export async function predecir(modelo: LayersModel, entrada: Tensor, info: InfoModelo, catalogo: Producto[] = []): Promise<PrediccionLocal> {
+  const salida = modelo.predict(entrada) as Tensor
+  try {
+    return interpretarProbabilidades(await salida.data(), info, catalogo)
+  } finally {
+    salida.dispose()
+  }
+}
+
+/** Clasifica un frame de <video> o una imagen <img> en el navegador, sin enviar nada al servidor. */
+export async function clasificarElementoVisual(
   fuente: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
   catalogo: Producto[] = [],
-): PrediccionLocal {
+): Promise<PrediccionLocal> {
+  await prepararModelo()
+  const { modelo, info } = await cargado!
+  const tf = await import('@tensorflow/tfjs')
+
   const canvas = document.createElement('canvas')
   canvas.width = TAMANO_ENTRADA
   canvas.height = TAMANO_ENTRADA
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('No se pudo inicializar el contexto 2D para TensorFlow.js')
+  const contexto = canvas.getContext('2d')
+  if (!contexto) throw new Error('No se pudo preparar la imagen en este navegador')
+  contexto.drawImage(fuente, 0, 0, TAMANO_ENTRADA, TAMANO_ENTRADA)
 
-  ctx.drawImage(fuente, 0, 0, TAMANO_ENTRADA, TAMANO_ENTRADA)
-  const imageData = ctx.getImageData(0, 0, TAMANO_ENTRADA, TAMANO_ENTRADA)
-  const feat = extraerCaracteristicasRgba(imageData.data, TAMANO_ENTRADA, TAMANO_ENTRADA)
-  return clasificarVector(feat, catalogo)
+  const entrada = tf.tidy(() => tf.browser.fromPixels(canvas).toFloat().expandDims(0))
+  try {
+    return await predecir(modelo, entrada, info, catalogo)
+  } finally {
+    entrada.dispose()
+  }
 }

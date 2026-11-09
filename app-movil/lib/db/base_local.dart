@@ -1,7 +1,6 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:path/path.dart' as p;
+import 'package:sqflite/sqflite.dart';
 
 /// Fila de la tabla `producto` definida en `lib/db/esquema.sql`.
 class ProductoLocal {
@@ -37,6 +36,7 @@ class ProductoLocal {
         tipo: (j['tipo'] as String?) ?? 'OTRO',
         precio: (j['precio'] as num).toDouble(),
         etiquetaModelo: (j['etiqueta_modelo'] as String?) ??
+            (j['etiquetaModelo'] as String?) ??
             mapaCodigoAEtiqueta[j['codigo'] as String] ??
             '',
       );
@@ -97,253 +97,203 @@ const Map<String, String> mapaEtiquetaACodigo = {
   'absolut_750': 'VOD-001',
 };
 
-/// Base de datos local offline que implementa las tablas `producto`, `stock` y `sync_info`
-/// de `lib/db/esquema.sql` con persistencia en disco en el dispositivo.
+/// Base SQLite del teléfono con las tablas `producto`, `stock` y `sync_info` de `lib/db/esquema.sql`: catálogo y
+/// stock para consultar sin internet (CU04 / R07).
 class BaseLocal {
-  BaseLocal({this.persistirEnDisco = true, String? rutaArchivo})
-      : _rutaArchivo = rutaArchivo ?? '${Directory.systemTemp.path}/licoreria_offline_sqlite.json';
+  /// [fabrica] y [ruta] solo se pasan en las pruebas, que no tienen el SQLite del dispositivo.
+  BaseLocal({DatabaseFactory? fabrica, String? ruta}) {
+    _fabrica = fabrica;
+    _ruta = ruta;
+  }
 
-  final bool persistirEnDisco;
-  final String _rutaArchivo;
+  static const _version = 1;
+  static const _nombreArchivo = 'licoreria_offline.db';
 
-  final Map<String, ProductoLocal> _productos = {};
-  final Map<String, StockLocal> _stocks = {};
-  final Map<String, String> _syncInfo = {};
-  String _esquemaSql = '';
-  bool _inicializada = false;
-
-  bool get inicializada => _inicializada;
-  String get esquemaSql => _esquemaSql;
-
-  static const List<ProductoLocal> _semillasProductos = [
-    ProductoLocal(
-      codigo: 'CER-001',
-      nombre: 'Cerveza Paceña 620 ml',
-      marca: 'CBN',
-      tipo: 'CERVEZA',
-      precio: 15.0,
-      etiquetaModelo: 'pacena_620',
+  /// Lo mínimo para usar la app sin haber sincronizado nunca; se reemplaza en la primera sincronización.
+  static const _semillas = <({ProductoLocal producto, int cantidad})>[
+    (
+      producto: ProductoLocal(
+        codigo: 'CER-001',
+        nombre: 'Cerveza Paceña 620 ml',
+        marca: 'Paceña',
+        tipo: 'CERVEZA',
+        precio: 12.0,
+        etiquetaModelo: 'pacena_620',
+      ),
+      cantidad: 48,
     ),
-    ProductoLocal(
-      codigo: 'CER-003',
-      nombre: 'Cerveza Huari 620 ml',
-      marca: 'CBN',
-      tipo: 'CERVEZA',
-      precio: 17.0,
-      etiquetaModelo: 'huari_620',
+    (
+      producto: ProductoLocal(
+        codigo: 'CER-003',
+        nombre: 'Cerveza Huari 620 ml',
+        marca: 'Huari',
+        tipo: 'CERVEZA',
+        precio: 14.0,
+        etiquetaModelo: 'huari_620',
+      ),
+      cantidad: 36,
     ),
-    ProductoLocal(
-      codigo: 'SIN-001',
-      nombre: 'Singani Casa Real Etiqueta Negra 750 ml',
-      marca: 'Casa Real',
-      tipo: 'SINGANI',
-      precio: 85.0,
-      etiquetaModelo: 'casareal_negra',
+    (
+      producto: ProductoLocal(
+        codigo: 'SIN-001',
+        nombre: 'Singani Casa Real Etiqueta Negra 750 ml',
+        marca: 'Casa Real',
+        tipo: 'SINGANI',
+        precio: 95.0,
+        etiquetaModelo: 'casareal_negra',
+      ),
+      cantidad: 18,
     ),
-    ProductoLocal(
-      codigo: 'WHI-001',
-      nombre: 'Whisky Johnnie Walker Red Label 750 ml',
-      marca: 'Johnnie Walker',
-      tipo: 'WHISKY',
-      precio: 165.0,
-      etiquetaModelo: 'jw_red',
+    (
+      producto: ProductoLocal(
+        codigo: 'WHI-001',
+        nombre: 'Whisky Johnnie Walker Red Label 750 ml',
+        marca: 'Johnnie Walker',
+        tipo: 'WHISKY',
+        precio: 180.0,
+        etiquetaModelo: 'jw_red',
+      ),
+      cantidad: 10,
     ),
-    ProductoLocal(
-      codigo: 'VOD-001',
-      nombre: 'Vodka Absolut 750 ml',
-      marca: 'Absolut',
-      tipo: 'VODKA',
-      precio: 130.0,
-      etiquetaModelo: 'absolut_750',
+    (
+      producto: ProductoLocal(
+        codigo: 'VOD-001',
+        nombre: 'Vodka Absolut 750 ml',
+        marca: 'Absolut',
+        tipo: 'VODKA',
+        precio: 150.0,
+        etiquetaModelo: 'absolut_750',
+      ),
+      cantidad: 12,
     ),
   ];
 
-  static const Map<String, int> _semillasStock = {
-    'CER-001': 48,
-    'CER-003': 36,
-    'SIN-001': 24,
-    'WHI-001': 15,
-    'VOD-001': 20,
-  };
+  static const _consultaProductos = '''
+    SELECT p.codigo, p.nombre, p.marca, p.tipo, p.precio, p.etiqueta_modelo, s.cantidad, s.actualizado_en
+    FROM producto p LEFT JOIN stock s ON s.producto_codigo = p.codigo''';
 
-  /// Inicializa el esquema `lib/db/esquema.sql`, carga datos persistidos o siembra el catálogo base para modo avión.
-  Future<void> inicializar() async {
-    if (_inicializada) return;
+  late final DatabaseFactory? _fabrica;
+  late final String? _ruta;
+  Future<Database>? _abriendo;
 
-    try {
-      _esquemaSql = await rootBundle.loadString('lib/db/esquema.sql');
-    } catch (_) {
-      _esquemaSql = 'CREATE TABLE producto (...); CREATE TABLE stock (...); CREATE TABLE sync_info (...);';
-    }
+  /// Abre la base una sola vez; si la apertura falla, el siguiente intento vuelve a probar.
+  Future<Database> _base() => _abriendo ??= _abrir().catchError((Object e) {
+        _abriendo = null;
+        throw e;
+      });
 
-    var cargadoDeDisco = false;
-    if (persistirEnDisco) {
-      try {
-        final archivo = File(_rutaArchivo);
-        if (await archivo.exists()) {
-          final mapa = jsonDecode(await archivo.readAsString()) as Map<String, dynamic>;
-          final listaProd = (mapa['producto'] as List<dynamic>? ?? []);
-          final listaStock = (mapa['stock'] as List<dynamic>? ?? []);
-          final mapaSync = (mapa['sync_info'] as Map<String, dynamic>? ?? {});
-          for (final item in listaProd) {
-            final p = ProductoLocal.desdeJson(item as Map<String, dynamic>);
-            _productos[p.codigo] = p;
-          }
-          for (final item in listaStock) {
-            final s = StockLocal.desdeJson(item as Map<String, dynamic>);
-            _stocks[s.productoCodigo] = s;
-          }
-          mapaSync.forEach((k, v) => _syncInfo[k] = '$v');
-          cargadoDeDisco = _productos.isNotEmpty;
-        }
-      } catch (_) {
-        cargadoDeDisco = false;
+  Future<Database> _abrir() async {
+    final fabrica = _fabrica ?? databaseFactory;
+    final ruta = _ruta ?? p.join(await fabrica.getDatabasesPath(), _nombreArchivo);
+    return fabrica.openDatabase(ruta, options: OpenDatabaseOptions(version: _version, onCreate: _crear));
+  }
+
+  Future<void> _crear(Database db, int _) async {
+    final esquema = await rootBundle.loadString('lib/db/esquema.sql');
+    await db.transaction((tx) async {
+      for (final sentencia in _sentenciasDe(esquema)) {
+        await tx.execute(sentencia);
       }
-    }
-
-    if (!cargadoDeDisco) {
-      _cargarSemillas();
-      await _persistir();
-    }
-
-    _inicializada = true;
-  }
-
-  void _cargarSemillas() {
-    final ahora = '2026-11-01T16:39:14Z';
-    for (final p in _semillasProductos) {
-      _productos[p.codigo] = p;
-      _stocks[p.codigo] = StockLocal(
-        productoCodigo: p.codigo,
-        cantidad: _semillasStock[p.codigo] ?? 10,
-        actualizadoEn: ahora,
-      );
-    }
-    _syncInfo['version_modelo'] = '20261101-163914';
-    _syncInfo['ultima_sync'] = ahora;
-  }
-
-  Future<void> _persistir() async {
-    if (!persistirEnDisco) return;
-    try {
-      final archivo = File(_rutaArchivo);
-      final datos = {
-        'producto': _productos.values.map((p) => p.aJson()).toList(),
-        'stock': _stocks.values.map((s) => s.aJson()).toList(),
-        'sync_info': _syncInfo,
-      };
-      await archivo.writeAsString(jsonEncode(datos));
-    } catch (_) {
-      // Ignorar errores de sistema de archivos en entornos restringidos
-    }
-  }
-
-  /// Asegura que las semillas estén presentes de forma síncrona si aún no se llamó a `inicializar()`.
-  void _asegurarDatos() {
-    if (_productos.isEmpty) {
-      _cargarSemillas();
-    }
-  }
-
-  /// Lista `producto JOIN stock` filtrando por texto (código, nombre, marca) y tipo de bebida.
-  List<ProductoConStock> listarProductos({String busqueda = '', String tipo = ''}) {
-    _asegurarDatos();
-    final q = busqueda.trim().toLowerCase();
-    final t = tipo.trim().toUpperCase();
-
-    final resultado = <ProductoConStock>[];
-    for (final p in _productos.values) {
-      if (t.isNotEmpty && p.tipo.toUpperCase() != t) continue;
-      if (q.isNotEmpty) {
-        final texto = '${p.codigo} ${p.nombre} ${p.marca ?? ''} ${p.etiquetaModelo}'.toLowerCase();
-        if (!texto.contains(q)) continue;
+      final ahora = DateTime.now().toUtc().toIso8601String();
+      for (final s in _semillas) {
+        await tx.insert('producto', s.producto.aJson());
+        await tx.insert('stock', StockLocal(productoCodigo: s.producto.codigo, cantidad: s.cantidad, actualizadoEn: ahora).aJson());
       }
-      final st = _stocks[p.codigo];
-      resultado.add(
-        ProductoConStock(
-          producto: p,
-          cantidad: st?.cantidad ?? 0,
-          actualizadoEn: st?.actualizadoEn ?? '',
-        ),
+    });
+  }
+
+  /// Separa un script SQL en sentencias, sin los comentarios `--`.
+  static List<String> _sentenciasDe(String esquema) => esquema
+      .replaceAll(RegExp(r'--[^\n]*'), '')
+      .split(';')
+      .map((x) => x.trim())
+      .where((x) => x.isNotEmpty)
+      .toList();
+
+  static ProductoConStock _aProductoConStock(Map<String, Object?> f) => ProductoConStock(
+        producto: ProductoLocal.desdeJson(f),
+        cantidad: (f['cantidad'] as int?) ?? 0,
+        actualizadoEn: (f['actualizado_en'] as String?) ?? '',
       );
+
+  /// Abre la base y crea sus tablas si es la primera vez.
+  Future<void> inicializar() => _base();
+
+  /// `producto JOIN stock` filtrando por texto (código, nombre, marca, etiqueta) y tipo de bebida.
+  Future<List<ProductoConStock>> listarProductos({String busqueda = '', String tipo = ''}) async {
+    final db = await _base();
+    final filtros = <String>[];
+    final valores = <Object>[];
+    if (tipo.trim().isNotEmpty) {
+      filtros.add('UPPER(p.tipo) = ?');
+      valores.add(tipo.trim().toUpperCase());
     }
-    resultado.sort((a, b) => a.producto.codigo.compareTo(b.producto.codigo));
-    return resultado;
+    if (busqueda.trim().isNotEmpty) {
+      filtros.add("LOWER(p.codigo || ' ' || p.nombre || ' ' || COALESCE(p.marca, '') || ' ' || p.etiqueta_modelo) LIKE ?");
+      valores.add('%${busqueda.trim().toLowerCase()}%');
+    }
+    final donde = filtros.isEmpty ? '' : 'WHERE ${filtros.join(' AND ')}';
+    final filas = await db.rawQuery('$_consultaProductos $donde ORDER BY p.codigo', valores);
+    return filas.map(_aProductoConStock).toList();
   }
 
-  List<String> tiposDisponibles() {
-    _asegurarDatos();
-    final tipos = _productos.values.map((p) => p.tipo.toUpperCase()).toSet().toList()..sort();
-    return tipos;
+  Future<List<String>> tiposDisponibles() async {
+    final db = await _base();
+    final filas = await db.rawQuery('SELECT DISTINCT UPPER(tipo) AS tipo FROM producto WHERE tipo IS NOT NULL ORDER BY 1');
+    return filas.map((f) => f['tipo'] as String).toList();
   }
 
-  ProductoConStock? buscarPorCodigo(String codigo) {
-    _asegurarDatos();
-    final p = _productos[codigo];
-    if (p == null) return null;
-    final st = _stocks[codigo];
-    return ProductoConStock(
-      producto: p,
-      cantidad: st?.cantidad ?? 0,
-      actualizadoEn: st?.actualizadoEn ?? '',
-    );
+  Future<ProductoConStock?> buscarPorCodigo(String codigo) async {
+    final db = await _base();
+    final filas = await db.rawQuery('$_consultaProductos WHERE p.codigo = ?', [codigo]);
+    return filas.isEmpty ? null : _aProductoConStock(filas.first);
   }
 
   /// Busca un producto y su stock local a partir de la clase predicha por el modelo TFLite.
-  ProductoConStock? buscarPorEtiqueta(String etiqueta) {
-    _asegurarDatos();
-    for (final p in _productos.values) {
-      if (p.etiquetaModelo == etiqueta) {
-        final st = _stocks[p.codigo];
-        return ProductoConStock(
-          producto: p,
-          cantidad: st?.cantidad ?? 0,
-          actualizadoEn: st?.actualizadoEn ?? '',
-        );
-      }
-    }
+  Future<ProductoConStock?> buscarPorEtiqueta(String etiqueta) async {
+    final db = await _base();
+    final filas = await db.rawQuery('$_consultaProductos WHERE p.etiqueta_modelo = ?', [etiqueta]);
+    if (filas.isNotEmpty) return _aProductoConStock(filas.first);
     final codigo = mapaEtiquetaACodigo[etiqueta];
     return codigo != null ? buscarPorCodigo(codigo) : null;
   }
 
-  /// Reemplaza/actualiza el catálogo y stock local al sincronizar con `ms-inventario`.
+  /// Actualiza catálogo y stock al sincronizar con `ms-inventario`, todo o nada.
   Future<void> guardarCatalogoYStock(
     List<ProductoLocal> productos,
     List<StockLocal> stocks, {
     String? versionModelo,
   }) async {
-    _asegurarDatos();
-    final ahora = DateTime.now().toUtc().toIso8601String();
-    for (final p in productos) {
-      final etiqueta = p.etiquetaModelo.isNotEmpty ? p.etiquetaModelo : (mapaCodigoAEtiqueta[p.codigo] ?? '');
-      _productos[p.codigo] = ProductoLocal(
-        codigo: p.codigo,
-        nombre: p.nombre,
-        marca: p.marca,
-        tipo: p.tipo,
-        precio: p.precio,
-        etiquetaModelo: etiqueta,
-      );
-    }
-    for (final s in stocks) {
-      _stocks[s.productoCodigo] = s;
-    }
-    _syncInfo['ultima_sync'] = ahora;
-    if (versionModelo != null && versionModelo.isNotEmpty) {
-      _syncInfo['version_modelo'] = versionModelo;
-    }
-    await _persistir();
+    final db = await _base();
+    final codigos = productos.map((x) => x.codigo).toSet();
+    await db.transaction((tx) async {
+      for (final x in productos) {
+        await tx.insert('producto', x.aJson(), conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      for (final s in stocks.where((s) => codigos.contains(s.productoCodigo))) {
+        await tx.insert('stock', s.aJson(), conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await _guardarInfo(tx, 'ultima_sync', DateTime.now().toUtc().toIso8601String());
+      if (versionModelo != null && versionModelo.isNotEmpty) {
+        await _guardarInfo(tx, 'version_modelo', versionModelo);
+      }
+    });
   }
 
-  String? obtenerSyncInfo(String clave) {
-    _asegurarDatos();
-    return _syncInfo[clave];
+  Future<String?> obtenerSyncInfo(String clave) async {
+    final db = await _base();
+    final filas = await db.query('sync_info', columns: ['valor'], where: 'clave = ?', whereArgs: [clave]);
+    return filas.isEmpty ? null : filas.first['valor'] as String;
   }
 
-  Future<void> guardarSyncInfo(String clave, String valor) async {
-    _asegurarDatos();
-    _syncInfo[clave] = valor;
-    await _persistir();
+  Future<void> guardarSyncInfo(String clave, String valor) async => _guardarInfo(await _base(), clave, valor);
+
+  Future<void> _guardarInfo(DatabaseExecutor db, String clave, String valor) =>
+      db.insert('sync_info', {'clave': clave, 'valor': valor}, conflictAlgorithm: ConflictAlgorithm.replace);
+
+  Future<void> cerrar() async {
+    final abriendo = _abriendo;
+    _abriendo = null;
+    if (abriendo != null) await (await abriendo).close();
   }
 }
-

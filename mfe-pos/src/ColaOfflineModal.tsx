@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { sincronizarVentasLote, type ResumenSincronizacion } from './api';
-import { listarVentasOffline, type VentaOfflineLocal } from './db/indexed-db';
+import { listarVentasOffline, type VentaOfflineLocal, eliminarVentaOffline } from './db/indexed-db';
 
 interface ColaOfflineModalProps {
   abierto: boolean;
@@ -31,6 +31,13 @@ export function ColaOfflineModal({ abierto, onCerrar, onActualizado }: ColaOffli
   }, [abierto]);
 
   if (!abierto) return null;
+
+  /** Las ventas con error no se borran solas: el cajero decide cuando ya las resolvió. */
+  const descartar = async (operationId: string) => {
+    await eliminarVentaOffline(operationId);
+    cargar();
+    onActualizado();
+  };
 
   const ejecutarSincronizacion = async () => {
     setSincronizando(true);
@@ -119,9 +126,14 @@ export function ColaOfflineModal({ abierto, onCerrar, onActualizado }: ColaOffli
                       {v.estadoSync === 'PENDIENTE' ? (
                         <span style={{ color: 'var(--lila-600)', fontWeight: 600 }}>Pendiente</span>
                       ) : (
-                        <span style={{ color: 'var(--rojo)', fontWeight: 600 }} title={v.motivoError}>
-                          Error ({v.motivoError})
-                        </span>
+                        <>
+                          <span style={{ color: 'var(--rojo)', fontWeight: 600 }} title={v.motivoError}>
+                            Error ({v.motivoError})
+                          </span>{' '}
+                          <button type="button" className="pos-modal-cerrar" style={{ width: 'auto', height: 'auto', fontSize: '.78rem' }} onClick={() => descartar(v.operationId)}>
+                            Descartar
+                          </button>
+                        </>
                       )}
                     </td>
                   </tr>

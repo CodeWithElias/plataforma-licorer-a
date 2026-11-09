@@ -1,4 +1,5 @@
 # Guion de pruebas – todo el sistema (semanas 1 a 3)
+> **Reemplazado por [docs/pruebas/guia-de-pruebas.md](pruebas/guia-de-pruebas.md).** Este guion quedó como referencia y no se actualiza.
 
 Recorre todo lo que funciona hoy, en el orden en que conviene probarlo. Cada paso dice **qué hacer** y **qué debe pasar** (✅).
 Marca `[x]` al terminar. Tiempo aproximado: 2 h. Si algo falla, anota el paso y el mensaje, y sigue con el siguiente.

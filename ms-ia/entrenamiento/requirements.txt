@@ -1,5 +1,5 @@
-# Solo para entrenar (no va en la imagen de ms-ia)
-tensorflow-cpu==2.21.0
-pillow==13.0.0
-# Opcional, para exportar a TF.js (lo usa el MFE POS en la semana 3):
-# tensorflowjs
+# Solo para entrenar (no va en la imagen de ms-ia). Usar Python 3.11: tensorflowjs aún exige Keras 2 y TensorFlow 2.15
+tensorflow==2.15.1
+tensorflowjs==4.17.0
+tensorflow-decision-forests==1.8.1
+pillow==11.3.0

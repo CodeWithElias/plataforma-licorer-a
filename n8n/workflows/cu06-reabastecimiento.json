@@ -29,7 +29,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ productoCodigo: $json.body.productoCodigo, nombre: $json.body.nombre, cantidad: $json.body.cantidad, minimo: $json.body.minimo }) }}",
         "options": {
-          "timeout": 120000
+          "timeout": 300000
         }
       },
       "id": "b0fc778a-b66d-57fa-92a1-feb763c2eb91",

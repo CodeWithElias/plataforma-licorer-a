@@ -11,6 +11,14 @@ export const Publico = () => SetMetadata(ES_PUBLICO, true);
 /** Exige alguno de estos roles de Keycloak. Ejemplo: @Roles('GERENTE') */
 export const Roles = (...roles: Rol[]) => SetMetadata(ROLES, roles);
 
+/** Inyecta el token recibido, sin "Bearer", para reenviarlo a otro servicio. */
+export const TokenActual = createParamDecorator((_: unknown, contexto: ExecutionContext): string => {
+  const req = contexto.getType<string>() === 'graphql'
+    ? GqlExecutionContext.create(contexto).getContext().req
+    : contexto.switchToHttp().getRequest();
+  return (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
+});
+
 /** Inyecta el usuario del token en un resolver o controller: `@UsuarioActual() usuario: Usuario`. */
 export const UsuarioActual = createParamDecorator((_: unknown, contexto: ExecutionContext): Usuario => {
   const req = contexto.getType<string>() === 'graphql'

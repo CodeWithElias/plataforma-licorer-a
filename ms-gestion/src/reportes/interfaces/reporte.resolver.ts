@@ -1,5 +1,5 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
-import { Roles, UsuarioActual } from '../../compartido/auth/decoradores.js';
+import { Roles, TokenActual, UsuarioActual } from '../../compartido/auth/decoradores.js';
 import type { Usuario } from '../../compartido/auth/usuario.js';
 import { conErroresGraphql } from '../../compartido/interfaces/errores-graphql.js';
 import { ListarReportes } from '../aplicacion/listar-reportes.js';
@@ -25,14 +25,16 @@ export class ReporteResolver {
     });
   }
 
+  // Solo GERENTE: el agente consulta ventas y stock con el token de quien pide el reporte
+  @Roles('GERENTE')
   @Mutation()
   generarReporte(
     @Args('consulta') consulta: string,
-    @UsuarioActual() usuario?: Usuario,
+    @UsuarioActual() usuario: Usuario,
+    @TokenActual() token: string,
   ) {
     return conErroresGraphql(async () => {
-      const creador = usuario?.usuario || 'admin01';
-      const creado = await this.generar.ejecutar(consulta, creador);
+      const creado = await this.generar.ejecutar(consulta, usuario.usuario, token);
       return aGraphql(creado);
     });
   }

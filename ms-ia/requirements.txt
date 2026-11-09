@@ -9,3 +9,5 @@ opencv-python-headless>=4.10.0
 ai-edge-litert==2.3.0
 # Agentes de CU06 y CU07 (grafos de estados); el LLM es Ollama, por HTTP
 langgraph>=1.0,<2
+# Servidor y cliente del protocolo MCP (R14)
+fastmcp>=4.1,<5

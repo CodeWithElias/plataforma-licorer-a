@@ -165,6 +165,7 @@ paths:
                   datos: { type: array, items: { type: array, items: {} } }
                   tipoGrafico: { type: string, enum: [barras, lineas, torta, tabla] }
                   resumen: { type: string }
+                  interpretadoPor: { type: string, enum: [llm, reglas], description: Quién interpretó el pedido }
                   reporteId: { type: string, nullable: true }
   /agentes/reabastecimiento:
     post:
@@ -189,6 +190,9 @@ paths:
                 type: object
                 properties:
                   ordenCreada: { type: boolean }
+                  motivo: { type: string }
+                  decididoPor: { type: string, enum: [llm, reglas], description: "llm salvo que Ollama falle o tarde demasiado" }
+                  herramientasUsadas: { type: array, items: { type: string }, description: Tools MCP que eligió el agente }
                   numero: { type: string, nullable: true }
                   lineas: { type: array, items: { type: object } }
                   motivo: { type: string, nullable: true }

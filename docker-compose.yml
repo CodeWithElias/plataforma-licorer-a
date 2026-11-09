@@ -1,9 +1,8 @@
 # Plataforma Licorería – entorno completo (monorepo)
 #   sh infra/crear-env.sh                           primera vez: crea cada <proyecto>/.env desde su .env.example
-#   docker compose run --rm mongo-init              primera vez por cluster de Atlas: colecciones e índices de ms-gestion
+#   docker compose run --rm mongo-init              aplica ms-gestion/db/gestion.js en Atlas (primera vez o si cambia)
 #   docker compose up -d --build                    todo el sistema
 #   docker compose up -d --build ms-ventas nginx    solo lo que nombras (y sus dependencias)
-#   docker compose --profile llm up -d ollama       LLM local para los agentes de ms-ia (imagen grande)
 #
 # Puertos: cada servicio tiene uno propio, igual dentro y fuera de Docker (ver README). El frontend entra
 # siempre por el gateway (nginx :80); los puertos directos sirven para probar cada servicio por separado.
@@ -31,11 +30,6 @@ services:
     entrypoint: ["/bin/sh", "/init/inventario.sh"]
     volumes: ["./ms-inventario/db/inventario.sh:/init/inventario.sh:ro"]
 
-  mongo:
-    image: mongo:7
-    ports: ["27017:27017"]
-    volumes: ["mongo-data:/data/db"]
-
   mongo-init:                          # solo a mano: docker compose run --rm mongo-init
     # Aplica ms-gestion/db/gestion.js en Atlas (colecciones, validadores e índices) y se apaga.
     # Se ejecuta una vez por cluster o cuando cambia gestion.js; no corre con "docker compose up".
@@ -46,15 +40,6 @@ services:
     volumes: ["./ms-gestion/db/gestion.js:/init/gestion.js:ro"]
 
   # ---------- Seguridad y gateway ----------
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak_password
-    ports: ["5432:5432"]
-    volumes: ["postgres-data:/var/lib/postgresql/data"]
-
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
     command: start-dev --import-realm
@@ -62,16 +47,12 @@ services:
     env_file: [./infra/.env, ./ms-gestion/.env, ./n8n/.env, ./ms-ventas/.env]
     environment:
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak?sslmode=disable
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak_password
       KC_HTTP_RELATIVE_PATH: /auth
       KC_HOSTNAME: http://localhost/auth   # emisor fijo del token
       KC_PROXY_HEADERS: xforwarded
     volumes:
       - "./infra/keycloak:/opt/keycloak/data/import:ro"                       # realm-licoreria.json
       - "./infra/keycloak-tema/licoreria:/opt/keycloak/themes/licoreria:ro"   # tema blanco y lila
-    depends_on: [postgres]
 
   nginx:
     image: nginx:stable
@@ -85,17 +66,11 @@ services:
     env_file: ./ms-ventas/.env
     ports: ["8080:8080"]
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      POSTGRES_DB: ventas
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak_password
-      DB_SSLMODE: disable
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
       INVENTARIO_URL: http://ms-inventario:8001
       GESTION_URL: http://ms-gestion:3000/graphql
       KEYCLOAK_TOKEN_URL: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/token
-    depends_on: [keycloak, postgres]
+    depends_on: [keycloak]
 
   ms-inventario:
     build: ./ms-inventario
@@ -124,10 +99,9 @@ services:
     env_file: ./ms-gestion/.env
     ports: ["3000:3000"]
     environment:
-      MONGO_URL: mongodb://mongo:27017/gestion
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_URL: http://keycloak:8080/auth
-    depends_on: [keycloak, mongo]
+    depends_on: [keycloak]
 
   web-shell:
     build: ./web-shell
@@ -149,6 +123,7 @@ services:
     volumes: ["./ms-ia/modelos:/app/modelos"]   # modelos entrenados (entrenamiento/entrenar.py)
     environment:
       OLLAMA_URL: http://ollama:11434
+      MCP_URL: http://localhost:8002/mcp-server/mcp   # los agentes usan las tools por el protocolo MCP
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
       VENTAS_URL: http://ms-ventas:8080
       INVENTARIO_URL: http://ms-inventario:8001
@@ -177,5 +152,3 @@ services:
 volumes:
   n8n-data: {}
   ollama-data: {}
-  mongo-data: {}
-  postgres-data: {}
