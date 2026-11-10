@@ -45,4 +45,19 @@ class Config {
   static const redirectUri = 'com.licoreria.app:/oauth2redirect';
 
   static String get keycloakBase => '$apiUrl/auth/realms/$realm/protocol/openid-connect';
+
+  // ---- Fotos analizadas a Amazon S3 (credenciales temporales de Cognito a cambio del login de Keycloak) ----
+  static String get awsRegion => _valor('', 'AWS_REGION', 'us-east-2');
+  static String get s3Bucket => _valor('', 'S3_BUCKET_FOTOS', '');
+  static String get cognitoIdentityPoolId => _valor('', 'COGNITO_IDENTITY_POOL_ID', '');
+
+  /// Sin bucket o sin Identity Pool configurados, las fotos no se guardan ni se suben.
+  static bool get subirFotos => s3Bucket.isNotEmpty && cognitoIdentityPoolId.isNotEmpty;
+
+  /// Nombre del proveedor OIDC en Cognito/IAM: el emisor del token sin `https://`.
+  /// Ej.: licoreria-backend.brazilsouth.cloudapp.azure.com/auth/realms/licoreria
+  static String get proveedorOidc {
+    final u = Uri.parse(apiUrl);
+    return '${u.host}${u.hasPort ? ':${u.port}' : ''}/auth/realms/$realm';
+  }
 }

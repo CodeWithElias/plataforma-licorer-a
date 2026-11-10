@@ -67,6 +67,43 @@ class StockLocal {
       );
 }
 
+/// Fila de `foto_pendiente`: una foto analizada que todavía no se subió a S3.
+class FotoPendiente {
+  const FotoPendiente({
+    required this.id,
+    required this.archivo,
+    required this.etiqueta,
+    required this.confianza,
+    required this.usuario,
+    required this.creadaEn,
+  });
+
+  final String id;
+  final String archivo;
+  final String etiqueta;
+  final double confianza;
+  final String usuario;
+  final DateTime creadaEn;
+
+  Map<String, dynamic> aJson() => {
+        'id': id,
+        'archivo': archivo,
+        'etiqueta': etiqueta,
+        'confianza': confianza,
+        'usuario': usuario,
+        'creada_en': creadaEn.toUtc().toIso8601String(),
+      };
+
+  factory FotoPendiente.desdeJson(Map<String, Object?> j) => FotoPendiente(
+        id: j['id'] as String,
+        archivo: j['archivo'] as String,
+        etiqueta: j['etiqueta'] as String,
+        confianza: (j['confianza'] as num).toDouble(),
+        usuario: j['usuario'] as String,
+        creadaEn: DateTime.parse(j['creada_en'] as String),
+      );
+}
+
 /// Vista unificada `producto JOIN stock` para consulta sin conexión (CU04 / R07).
 class ProductoConStock {
   const ProductoConStock({
@@ -106,7 +143,12 @@ class BaseLocal {
     _ruta = ruta;
   }
 
-  static const _version = 1;
+  /// 2: tabla foto_pendiente (fotos analizadas que esperan subir a S3)
+  static const _version = 2;
+  static const _tablaFotos = '''
+    CREATE TABLE IF NOT EXISTS foto_pendiente (
+      id TEXT PRIMARY KEY, archivo TEXT NOT NULL, etiqueta TEXT NOT NULL, confianza REAL NOT NULL,
+      usuario TEXT NOT NULL, creada_en TEXT NOT NULL)''';
   static const _nombreArchivo = 'licoreria_offline.db';
 
   /// Lo mínimo para usar la app sin haber sincronizado nunca; se reemplaza en la primera sincronización.
@@ -185,7 +227,17 @@ class BaseLocal {
   Future<Database> _abrir() async {
     final fabrica = _fabrica ?? databaseFactory;
     final ruta = _ruta ?? p.join(await fabrica.getDatabasesPath(), _nombreArchivo);
-    return fabrica.openDatabase(ruta, options: OpenDatabaseOptions(version: _version, onCreate: _crear));
+    return fabrica.openDatabase(
+      ruta,
+      options: OpenDatabaseOptions(
+        version: _version,
+        onCreate: _crear,
+        // Teléfonos que ya tenían la base de la versión 1: solo se agrega la tabla nueva, sin tocar sus datos
+        onUpgrade: (db, anterior, _) async {
+          if (anterior < 2) await db.execute(_tablaFotos);
+        },
+      ),
+    );
   }
 
   Future<void> _crear(Database db, int _) async {
@@ -237,6 +289,13 @@ class BaseLocal {
     return filas.map(_aProductoConStock).toList();
   }
 
+  /// Cantidad en stock de cada producto guardado, por código.
+  Future<Map<String, int>> stockPorCodigo() async {
+    final db = await _base();
+    final filas = await db.query('stock', columns: ['producto_codigo', 'cantidad']);
+    return {for (final f in filas) f['producto_codigo'] as String: f['cantidad'] as int};
+  }
+
   Future<List<String>> tiposDisponibles() async {
     final db = await _base();
     final filas = await db.rawQuery('SELECT DISTINCT UPPER(tipo) AS tipo FROM producto WHERE tipo IS NOT NULL ORDER BY 1');
@@ -278,6 +337,30 @@ class BaseLocal {
         await _guardarInfo(tx, 'version_modelo', versionModelo);
       }
     });
+  }
+
+  // ---- Cola de fotos para S3 ----
+
+  Future<void> encolarFoto(FotoPendiente f) async {
+    final db = await _base();
+    await db.insert('foto_pendiente', f.aJson(), conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// Las más antiguas primero.
+  Future<List<FotoPendiente>> fotosPendientes({int limite = 20}) async {
+    final db = await _base();
+    final filas = await db.query('foto_pendiente', orderBy: 'creada_en', limit: limite);
+    return filas.map(FotoPendiente.desdeJson).toList();
+  }
+
+  Future<int> contarFotosPendientes() async {
+    final db = await _base();
+    return Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM foto_pendiente')) ?? 0;
+  }
+
+  Future<void> quitarFoto(String id) async {
+    final db = await _base();
+    await db.delete('foto_pendiente', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<String?> obtenerSyncInfo(String clave) async {

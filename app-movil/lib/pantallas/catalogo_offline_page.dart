@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../db/base_local.dart';
 import '../servicios/api.dart';
+import '../servicios/avisos_stock.dart';
 
 /// Pantalla de catálogo y existencias sin conexión (CU04 / R07: SQLite + TFLite local).
 class CatalogoOfflinePage extends StatefulWidget {
-  const CatalogoOfflinePage({super.key, required this.api});
+  const CatalogoOfflinePage({super.key, required this.api, required this.avisos});
 
   final Api api;
+  final AvisosStock avisos;
 
   @override
   State<CatalogoOfflinePage> createState() => _CatalogoOfflinePageState();
@@ -32,7 +34,8 @@ class _CatalogoOfflinePageState extends State<CatalogoOfflinePage> {
   Future<void> _cargarInicial() async {
     await widget.api.baseLocal.inicializar();
     await widget.api.clasificadorLocal.inicializar();
-    await _consultar();
+    await _consultar();   // primero lo local, así la pantalla no espera a la red
+    await _sincronizar(avisarExito: false);   // y si hay internet, se actualiza solo
   }
 
   /// Lee de SQLite lo que muestra la pantalla, con la búsqueda y el filtro actuales.
@@ -40,26 +43,30 @@ class _CatalogoOfflinePageState extends State<CatalogoOfflinePage> {
     final base = widget.api.baseLocal;
     final items = await base.listarProductos(busqueda: _busqueda, tipo: _tipoSeleccionado);
     final tipos = await base.tiposDisponibles();
-    final version = await base.obtenerSyncInfo('version_modelo');
     final ultimaSync = await base.obtenerSyncInfo('ultima_sync');
     if (!mounted) return;
     setState(() {
       _items = items;
       _tipos = tipos;
-      _versionModelo = version ?? widget.api.clasificadorLocal.version;
+      _versionModelo = widget.api.clasificadorLocal.version;   // la que está en uso (descargada o del APK)
       _ultimaSync = ultimaSync ?? 'Semilla local';
     });
   }
 
-  Future<void> _sincronizar() async {
+  /// [avisarExito] en false (sincronización automática al abrir): sin mensaje si salió bien.
+  Future<void> _sincronizar({bool avisarExito = true}) async {
+    if (_sincronizando || !mounted) return;
     setState(() => _sincronizando = true);
-    final ok = await widget.api.sincronizarDatosOffline();
+    final resultado = await widget.api.sincronizarDatosOffline();
+    final ok = resultado.conectado;
+    await widget.avisos.avisar(resultado.cambios).catchError((_) {});
     await _consultar();
     if (!mounted) return;
     setState(() {
       _sincronizando = false;
       _ultimaSyncOnline = ok;
     });
+    if (ok && !avisarExito) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(

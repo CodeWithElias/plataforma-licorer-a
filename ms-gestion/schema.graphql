@@ -25,6 +25,11 @@ type Mutation {
 
   # CU06 – Reabastecimiento (lo llama la tool MCP crear_orden_compra)
   crearOrdenCompra(input: OrdenCompraInput!): OrdenCompra!
+  # Ciclo de la orden (gerente desde mfe-gestion): BORRADOR → ENVIADA → RECIBIDA, o ANULADA antes de recibirla
+  enviarOrdenCompra(id: ID!): OrdenCompra!
+  anularOrdenCompra(id: ID!): OrdenCompra!
+  "Llegó la mercadería: suma cada línea al stock de ms-inventario (solo GERENTE)"
+  recibirOrdenCompra(id: ID!): OrdenCompra!
 
   # CU07 – Generar y exportar reporte (IA + PDF)
   generarReporte(consulta: String!): Reporte!
@@ -96,6 +101,9 @@ type OrdenCompra {
   origen: OrigenOrden!
   lineas: [LineaOrden!]!
   total: Float!
+  fechaRecepcion: String
+  "Índices de las líneas ya sumadas al stock (recepción interrumpida a medias)"
+  lineasRepuestas: [Int!]!
 }
 
 type LineaOrden {

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../servicios/api.dart';
+import '../servicios/avisos_stock.dart';
 import '../servicios/sesion.dart';
 import 'camara_page.dart';
 import 'catalogo_offline_page.dart';
 
 class InicioPage extends StatelessWidget {
-  const InicioPage({super.key, required this.sesion, required this.api, required this.alCerrar});
+  const InicioPage({super.key, required this.sesion, required this.api, required this.avisos, required this.alCerrar});
 
   final Sesion sesion;
   final Api api;
+  final AvisosStock avisos;
   final VoidCallback alCerrar;
 
   @override
@@ -47,7 +49,7 @@ class InicioPage extends StatelessWidget {
               leading: const Icon(Icons.inventory_2),
               title: const Text('Catálogo y stock sin conexión'),
               subtitle: const Text('SQLite local + modelo TFLite en el teléfono'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CatalogoOfflinePage(api: api))),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CatalogoOfflinePage(api: api, avisos: avisos))),
             ),
           ),
         ],

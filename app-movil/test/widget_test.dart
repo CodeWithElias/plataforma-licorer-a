@@ -10,6 +10,7 @@ import 'package:app_movil/db/base_local.dart';
 import 'package:app_movil/main.dart';
 import 'package:app_movil/pantallas/catalogo_offline_page.dart';
 import 'package:app_movil/servicios/api.dart';
+import 'package:app_movil/servicios/avisos_stock.dart';
 import 'package:app_movil/servicios/clasificador_local.dart';
 import 'package:app_movil/servicios/sesion.dart';
 
@@ -25,6 +26,15 @@ class _MotorFalso implements MotorModelo {
     recibido = rgb;
     return salida;
   }
+
+  @override
+  int get clases => salida.length;
+
+  @override
+  List<int> get entrada => const [1, 224, 224, 3];
+
+  @override
+  void cerrar() {}
 }
 
 /// SQLite real en memoria, con una base nueva en cada prueba. Sin isolate para que funcione dentro de testWidgets.
@@ -119,7 +129,7 @@ void main() {
       clasificadorLocal: ClasificadorLocal(baseLocal: base),
     );
 
-    await tester.pumpWidget(MaterialApp(home: CatalogoOfflinePage(api: api)));
+    await tester.pumpWidget(MaterialApp(home: CatalogoOfflinePage(api: api, avisos: AvisosStock())));
     // SQLite responde fuera del reloj simulado de testWidgets
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
     await tester.pump();

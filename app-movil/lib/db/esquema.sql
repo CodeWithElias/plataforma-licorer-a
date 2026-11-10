@@ -19,3 +19,13 @@ CREATE TABLE sync_info (
   clave  TEXT PRIMARY KEY,            -- p. ej. 'ultima_sync', 'version_modelo'
   valor  TEXT NOT NULL
 );
+
+-- Fotos analizadas que esperan subir a S3 (la imagen está en un archivo; aquí solo la ruta y lo que predijo)
+CREATE TABLE foto_pendiente (
+  id         TEXT PRIMARY KEY,
+  archivo    TEXT NOT NULL,
+  etiqueta   TEXT NOT NULL,
+  confianza  REAL NOT NULL,
+  usuario    TEXT NOT NULL,
+  creada_en  TEXT NOT NULL
+);

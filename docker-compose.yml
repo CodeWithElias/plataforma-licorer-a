@@ -101,6 +101,7 @@ services:
     environment:
       KEYCLOAK_JWKS: http://keycloak:8080/auth/realms/licoreria/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_URL: http://keycloak:8080/auth
+      INVENTARIO_URL: http://ms-inventario:8001   # recibir órdenes de compra suma el stock
     depends_on: [keycloak]
 
   web-shell:

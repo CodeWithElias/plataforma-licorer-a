@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Avisos de cambios de stock (Android 13+ pide permiso al usuario) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- usesCleartextTraffic: en desarrollo el servidor es http://<IP de la PC> (sin HTTPS) -->
     <application
         android:label="Licorería"
@@ -11,7 +13,6 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
